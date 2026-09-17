@@ -16,10 +16,13 @@ Hard overrides (score-independent):
 
 from datetime import datetime, timezone
 
+from scanner.logger import get_logger
 from scanner.models.finding import FindingSeverity, ScanFinding, ScannerType
 from scanner.models.sandbox import SandboxEventType, SandboxReport
 from scanner.models.verdict import RiskLevel, ScanVerdict, VerdictDecision
 from scanner.verdict.scorer import combined_score, score_findings, score_sandbox
+
+log = get_logger(__name__)
 
 
 def _risk_level(score: int) -> RiskLevel:
@@ -86,6 +89,7 @@ def evaluate(
     hard_blocks = _hard_block_reasons(findings, report)
 
     if hard_blocks:
+        log.critical("hard block triggered", extra={"artifact_id": artifact_id, "reasons": hard_blocks})
         decision = VerdictDecision.BLOCKED
         risk = RiskLevel.CRITICAL
         score = max(score, 80)

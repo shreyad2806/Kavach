@@ -7,8 +7,11 @@ Detects: subprocess abuse, eval/exec, hardcoded passwords, weak crypto, etc.
 import json
 import subprocess
 
+from scanner.logger import get_logger
 from scanner.models.finding import FindingSeverity, ScanFinding, ScannerType
 from scanner.scanners.base import BaseScanner
+
+log = get_logger(__name__)
 
 _SEVERITY_MAP = {
     "HIGH": FindingSeverity.HIGH,
@@ -29,7 +32,14 @@ class BanditScanner(BaseScanner):
             )
             # Bandit exits 1 when it finds issues — that is expected, not an error
             raw = json.loads(result.stdout)
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
+        except subprocess.TimeoutExpired:
+            log.warning("bandit timed out", extra={"artifact_id": artifact_id})
+            return []
+        except FileNotFoundError:
+            log.error("bandit not installed")
+            return []
+        except json.JSONDecodeError as e:
+            log.warning("bandit output parse failed", extra={"error": str(e)})
             return []
 
         findings = []

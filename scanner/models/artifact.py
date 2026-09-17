@@ -50,3 +50,7 @@ class ArtifactRecord(BaseModel):
     approved_key: str | None = Field(default=None, description="S3 key in approved bucket, set after approval.")
     created_at: datetime = Field(..., description="UTC timestamp when the record was created.")
     updated_at: datetime = Field(..., description="UTC timestamp of the last status update.")
+    # Inter-run comparison fields
+    previous_sha256: str | None = Field(default=None, description="SHA-256 of the previously scanned version, if any.")
+    previous_verdict: str | None = Field(default=None, description="Verdict decision from the previous scan, if any.")
+    scan_count: int = Field(default=1, description="How many times this source_url has been scanned.")

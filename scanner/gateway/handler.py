@@ -27,6 +27,9 @@ import boto3
 from pydantic import ValidationError
 
 from scanner.gateway.downloader import ArtifactTooLargeError, DownloadError, fetch
+from scanner.logger import get_logger
+
+log = get_logger(__name__)
 from scanner.models.artifact import ArtifactRecord, ArtifactRequest, ArtifactStatus
 from scanner.storage.dynamodb import put_artifact, update_artifact_status
 from scanner.storage.s3 import upload_to_quarantine
@@ -81,26 +84,31 @@ def handler(event: dict, context) -> dict:
     try:
         put_artifact(record)
     except Exception as e:
+        log.error("failed to create artifact record", extra={"artifact_id": artifact_id, "error": str(e)})
         return _response(500, {"error": f"Failed to create artifact record: {e}"})
 
     # Download artifact to quarantine
     try:
+        log.info("downloading artifact", extra={"artifact_id": artifact_id, "source_url": request.source_url})
         data = fetch(request.source_url)
     except ArtifactTooLargeError as e:
+        log.warning("artifact too large", extra={"artifact_id": artifact_id, "error": str(e)})
         update_artifact_status(artifact_id, ArtifactStatus.FAILED)
         return _response(400, {"error": str(e)})
     except DownloadError as e:
+        log.error("artifact download failed", extra={"artifact_id": artifact_id, "error": str(e)})
         update_artifact_status(artifact_id, ArtifactStatus.FAILED)
         return _response(502, {"error": str(e)})
 
     # Upload to quarantine S3 and record the hash
     try:
         quarantine_s3_key, sha256 = upload_to_quarantine(artifact_id, request.source_url, data)
+        log.info("artifact quarantined", extra={"artifact_id": artifact_id, "sha256": sha256, "key": quarantine_s3_key})
     except Exception as e:
+        log.error("failed to store artifact", extra={"artifact_id": artifact_id, "error": str(e)})
         update_artifact_status(artifact_id, ArtifactStatus.FAILED)
         return _response(500, {"error": f"Failed to store artifact: {e}"})
 
-    # Update record with quarantine location and hash, transition to QUEUED
     update_artifact_status(
         artifact_id,
         ArtifactStatus.QUEUED,
@@ -108,10 +116,11 @@ def handler(event: dict, context) -> dict:
         quarantine_key=quarantine_s3_key,
     )
 
-    # Kick off the scanner pipeline — this is the trigger that was missing
     try:
         _start_pipeline(artifact_id)
+        log.info("pipeline started", extra={"artifact_id": artifact_id})
     except Exception as e:
+        log.error("failed to start pipeline", extra={"artifact_id": artifact_id, "error": str(e)})
         update_artifact_status(artifact_id, ArtifactStatus.FAILED)
         return _response(500, {"error": f"Failed to start scan pipeline: {e}"})
 

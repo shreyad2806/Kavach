@@ -14,6 +14,7 @@ Each invocation is stateless — state lives in DynamoDB.
 import os
 import tempfile
 
+from scanner.logger import get_logger
 from scanner.models.artifact import ArtifactStatus
 from scanner.sandbox.runner import run as sandbox_run
 from scanner.scanners.bandit import BanditScanner
@@ -29,6 +30,8 @@ from scanner.storage.dynamodb import (
 )
 from scanner.storage.s3 import download_from_quarantine, promote_to_approved
 from scanner.verdict.engine import evaluate
+
+log = get_logger(__name__)
 
 _SCANNERS = {
     "bandit": BanditScanner(),
@@ -55,6 +58,15 @@ def _write_artifact(tmpdir: str, data: bytes) -> str:
     return artifact_path
 
 
+def _get_status_url(artifact_id: str) -> str:
+    """Build the status polling URL for an artifact."""
+    api_id = os.environ.get("API_GATEWAY_ID", "")
+    region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+    if api_id:
+        return f"https://{api_id}.execute-api.{region}.amazonaws.com/Prod/artifacts/{artifact_id}"
+    return f"/artifacts/{artifact_id}"
+
+
 def handler(event: dict, context) -> dict:
     stage = event.get("stage")
     artifact_id = event.get("artifact_id")
@@ -75,6 +87,7 @@ def handler(event: dict, context) -> dict:
         if scanner_name not in _SCANNERS:
             return _error(f"Unknown scanner: {scanner_name}")
 
+        log.info("static scan started", extra={"artifact_id": artifact_id, "scanner": scanner_name})
         update_artifact_status(artifact_id, ArtifactStatus.SCANNING)
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -85,6 +98,7 @@ def handler(event: dict, context) -> dict:
         for finding in findings:
             put_finding(finding)
 
+        log.info("static scan complete", extra={"artifact_id": artifact_id, "scanner": scanner_name, "finding_count": len(findings)})
         return _ok({
             "artifact_id": artifact_id,
             "scanner": scanner_name,
@@ -93,17 +107,17 @@ def handler(event: dict, context) -> dict:
 
     # ------------------------------------------------------------------ #
     # STAGE: sandbox                                                       #
+    # Triggers a Fargate task — no local Docker needed                    #
     # ------------------------------------------------------------------ #
     if stage == "sandbox":
         from datetime import datetime, timezone
         from scanner.models.finding import FindingSeverity, ScanFinding, ScannerType
 
+        log.info("sandbox stage started", extra={"artifact_id": artifact_id})
         update_artifact_status(artifact_id, ArtifactStatus.SANDBOXING)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            data = download_from_quarantine(artifact_id, record.source_url)
-            artifact_path = _write_artifact(tmpdir, data)
-            report = sandbox_run(artifact_id, artifact_path)
+        # sandbox_run triggers Fargate, waits for completion, reads report from DynamoDB
+        report = sandbox_run(artifact_id, artifact_path="")  # artifact_path unused — Fargate reads from S3
 
         for evt in report.events:
             if evt.suspicious:
@@ -116,6 +130,7 @@ def handler(event: dict, context) -> dict:
                     timestamp=datetime.now(timezone.utc),
                 ))
 
+        log.info("sandbox complete", extra={"artifact_id": artifact_id, "executed": report.executed, "suspicious_count": report.suspicious_event_count})
         return _ok({
             "artifact_id": artifact_id,
             "executed": report.executed,
@@ -126,12 +141,14 @@ def handler(event: dict, context) -> dict:
     # STAGE: verdict                                                       #
     # ------------------------------------------------------------------ #
     if stage == "verdict":
+        log.info("verdict stage started", extra={"artifact_id": artifact_id})
         findings = get_findings(artifact_id)
         verdict = evaluate(
             artifact_id=artifact_id,
             sha256=record.sha256 or "",
             findings=findings,
         )
+        log.info("verdict produced", extra={"artifact_id": artifact_id, "decision": verdict.decision.value, "risk_score": verdict.risk_score, "risk_level": verdict.risk_level.value})
         put_verdict(verdict)
 
         if verdict.decision.value == "APPROVED":

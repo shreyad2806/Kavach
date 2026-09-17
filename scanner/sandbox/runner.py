@@ -31,7 +31,10 @@ from datetime import datetime, timezone
 
 import boto3
 
+from scanner.logger import get_logger
 from scanner.models.sandbox import SandboxReport
+
+log = get_logger(__name__)
 
 _POLL_INTERVAL = 5   # seconds between status checks
 _MAX_WAIT = 120      # seconds before we give up waiting for the task
@@ -69,12 +72,15 @@ def run(
     """
     now = datetime.now(timezone.utc)
 
+    log.info("triggering fargate sandbox", extra={"artifact_id": artifact_id})
+
     cluster = os.environ.get("FARGATE_CLUSTER_ARN")
     task_def = os.environ.get("FARGATE_TASK_DEF_ARN")
     subnet = os.environ.get("FARGATE_SUBNET_ID")
     sg = os.environ.get("FARGATE_SECURITY_GROUP_ID")
 
     if not all([cluster, task_def, subnet, sg]):
+        log.error("fargate env vars not configured", extra={"artifact_id": artifact_id})
         return SandboxReport(
             artifact_id=artifact_id,
             executed=False,
@@ -107,6 +113,7 @@ def run(
             },
         )
     except Exception as e:
+        log.error("failed to start fargate task", extra={"artifact_id": artifact_id, "error": str(e)})
         return SandboxReport(
             artifact_id=artifact_id,
             executed=False,
@@ -124,6 +131,7 @@ def run(
         )
 
     task_arn = resp["tasks"][0]["taskArn"]
+    log.info("fargate task started", extra={"artifact_id": artifact_id, "task_arn": task_arn})
 
     # Poll until the task stops or we hit the timeout
     deadline = time.monotonic() + timeout
