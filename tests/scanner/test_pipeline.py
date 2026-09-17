@@ -228,10 +228,12 @@ def test_verdict_stage_approved(aws_setup):
     _seed_artifact()
     upload_to_quarantine("art-001", "https://example.com/pkg.tar.gz", b"clean code")
 
-    resp = handler({"stage": "verdict", "artifact_id": "art-001"}, None)
+    with patch("scanner.pipeline.handler.explain_scan", return_value="All clear."):
+        resp = handler({"stage": "verdict", "artifact_id": "art-001"}, None)
 
     assert resp["status"] == "OK"
     assert resp["decision"] == "APPROVED"
+    assert resp["agent_report"] == "All clear."
     record = get_artifact("art-001")
     assert record.status == ArtifactStatus.APPROVED
     assert record.approved_key is not None
@@ -253,7 +255,8 @@ def test_verdict_stage_blocked_on_critical_finding(aws_setup):
         timestamp=NOW,
     ))
 
-    resp = handler({"stage": "verdict", "artifact_id": "art-001"}, None)
+    with patch("scanner.pipeline.handler.explain_scan", return_value="Blocked: secret found."):
+        resp = handler({"stage": "verdict", "artifact_id": "art-001"}, None)
 
     assert resp["status"] == "OK"
     assert resp["decision"] == "BLOCKED"
@@ -266,7 +269,8 @@ def test_verdict_stage_stores_verdict(aws_setup):
     _seed_artifact()
     upload_to_quarantine("art-001", "https://example.com/pkg.tar.gz", b"code")
 
-    handler({"stage": "verdict", "artifact_id": "art-001"}, None)
+    with patch("scanner.pipeline.handler.explain_scan", return_value="Report."):
+        handler({"stage": "verdict", "artifact_id": "art-001"}, None)
 
     verdict = get_verdict("art-001")
     assert verdict is not None
@@ -288,7 +292,8 @@ def test_blocked_artifact_never_promoted_to_approved(aws_setup):
         timestamp=NOW,
     ))
 
-    handler({"stage": "verdict", "artifact_id": "art-001"}, None)
+    with patch("scanner.pipeline.handler.explain_scan", return_value="Blocked."):
+        handler({"stage": "verdict", "artifact_id": "art-001"}, None)
 
     # Approved prefix must be empty
     s3 = boto3.client("s3", region_name="us-east-1")

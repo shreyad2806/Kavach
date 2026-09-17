@@ -83,7 +83,27 @@ def evaluate(
     sha256: str,
     findings: list[ScanFinding],
     report: SandboxReport | None = None,
+    previous_sha256: str | None = None,
+    scan_count: int = 1,
 ) -> ScanVerdict:
+    # Inject a finding if the artifact hash changed since the last scan
+    if previous_sha256 and sha256 and sha256 != previous_sha256:
+        log.warning(
+            "artifact hash changed since last scan",
+            extra={"artifact_id": artifact_id, "previous_sha256": previous_sha256, "new_sha256": sha256},
+        )
+        findings = list(findings) + [ScanFinding(
+            artifact_id=artifact_id,
+            scanner=ScannerType.SEMGREP,  # closest generic scanner type
+            severity=FindingSeverity.HIGH,
+            title="Artifact hash changed since last scan",
+            description=(
+                f"SHA-256 changed from {previous_sha256[:16]}... to {sha256[:16]}... "
+                f"(scan #{scan_count}). Verify the source has not been tampered with."
+            ),
+            timestamp=datetime.now(timezone.utc),
+        )]
+
     score = combined_score(findings, report)
     risk = _risk_level(score)
     hard_blocks = _hard_block_reasons(findings, report)

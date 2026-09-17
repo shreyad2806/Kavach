@@ -77,6 +77,12 @@ SIGNALS: list[Signal] = [
     Signal(re.compile(r"openat\(.*O_WRONLY|openat\(.*O_RDWR", re.I), SandboxEventType.FILE_WRITE, False),
     Signal(re.compile(r"unlinkat?\(", re.I), SandboxEventType.FILE_DELETE, True),
     Signal(re.compile(r"setuid|setgid|setreuid|setregid", re.I), SandboxEventType.PRIVILEGE_ESCALATION, True),
+    # Node.js-specific patterns
+    Signal(re.compile(r"(require\(['"]child_process['"]|spawn|execSync|execFile)", re.I), SandboxEventType.SHELL_EXECUTION, True),
+    Signal(re.compile(r"(https?|axios|fetch|node-fetch|got)\.(get|post|request)", re.I), SandboxEventType.NETWORK_CONNECT, True),
+    Signal(re.compile(r"(fs\.writeFile|fs\.appendFile|createWriteStream)", re.I), SandboxEventType.FILE_WRITE, False),
+    Signal(re.compile(r"(fs\.unlink|rimraf)", re.I), SandboxEventType.FILE_DELETE, True),
+    Signal(re.compile(r"process\.env", re.I), SandboxEventType.ENV_READ, False),
 ]
 
 
@@ -118,6 +124,15 @@ def _detect_type(artifact_dir: Path) -> tuple[str, Path | None]:
     if py_files:
         return "python", py_files[0]
 
+    # JavaScript / TypeScript
+    for candidate in ("index.js", "main.js", "app.js", "index.ts", "main.ts"):
+        p = artifact_dir / candidate
+        if p.exists():
+            return "javascript", p
+    js_files = list(artifact_dir.rglob("*.js"))
+    if js_files:
+        return "javascript", js_files[0]
+
     # Shell scripts
     for ext in ("*.sh", "*.bash"):
         sh_files = list(artifact_dir.rglob(ext))
@@ -140,6 +155,22 @@ def _detect_type(artifact_dir: Path) -> tuple[str, Path | None]:
 # ---------------------------------------------------------------------------
 # Execution strategies
 # ---------------------------------------------------------------------------
+
+def _run_node(entrypoint: Path, tmpdir: str) -> tuple[str, int | None, bool, str | None]:
+    try:
+        result = subprocess.run(
+            ["strace", "-f", "-e", "trace=network,file,process", "-s", "200",
+             "node", str(entrypoint)],
+            capture_output=True, text=True, timeout=30, cwd=tmpdir,
+        )
+        return result.stdout + "\n" + result.stderr, result.returncode, True, None
+    except subprocess.TimeoutExpired:
+        return "", None, True, "Node.js execution timed out after 30s"
+    except FileNotFoundError:
+        return "", None, False, "node not installed"
+    except Exception as e:
+        return "", None, False, str(e)
+
 
 def _run_python(entrypoint: Path, tmpdir: str) -> tuple[str, int | None, bool, str | None]:
     try:
@@ -252,6 +283,8 @@ def main():
 
         if file_type == "python":
             output, exit_code, executed, error = _run_python(entrypoint, tmpdir)
+        elif file_type == "javascript":
+            output, exit_code, executed, error = _run_node(entrypoint, tmpdir)
         elif file_type == "shell":
             output, exit_code, executed, error = _run_shell(entrypoint, tmpdir)
         elif file_type == "binary":

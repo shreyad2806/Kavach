@@ -49,6 +49,22 @@ def get_artifact(artifact_id: str) -> ArtifactRecord | None:
     return ArtifactRecord.model_validate(item) if item else None
 
 
+def get_latest_artifact_by_url(source_url: str) -> ArtifactRecord | None:
+    """
+    Return the most recently created artifact record for a given source_url, or None.
+    Uses the SourceUrlIndex GSI (source_url → created_at sort key).
+    """
+    resp = _artifacts_table().query(
+        IndexName="SourceUrlIndex",
+        KeyConditionExpression="source_url = :url",
+        ExpressionAttributeValues={":url": source_url},
+        ScanIndexForward=False,  # newest first
+        Limit=1,
+    )
+    items = resp.get("Items", [])
+    return ArtifactRecord.model_validate(items[0]) if items else None
+
+
 def update_artifact_status(artifact_id: str, status: ArtifactStatus, **extra_fields) -> None:
     now = datetime.now(timezone.utc).isoformat()
     update_expr = "SET #s = :s, updated_at = :u"
@@ -90,11 +106,17 @@ def get_findings(artifact_id: str) -> list[ScanFinding]:
 
 # ---------- Verdict ----------
 
-def put_verdict(verdict: ScanVerdict) -> None:
-    _verdicts_table().put_item(Item=json.loads(verdict.model_dump_json()))
+def put_verdict(verdict: ScanVerdict, agent_report: str | None = None) -> None:
+    item = json.loads(verdict.model_dump_json())
+    if agent_report:
+        item["agent_report"] = agent_report
+    _verdicts_table().put_item(Item=item)
 
 
 def get_verdict(artifact_id: str) -> ScanVerdict | None:
     resp = _verdicts_table().get_item(Key={"artifact_id": artifact_id})
     item = resp.get("Item")
-    return ScanVerdict.model_validate(item) if item else None
+    if not item:
+        return None
+    item.pop("agent_report", None)
+    return ScanVerdict.model_validate(item)

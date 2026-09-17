@@ -39,6 +39,7 @@ SIGNALS: list[Signal] = [
     Signal(re.compile(r"os\.environ|getenv|environ\[", re.I), SandboxEventType.ENV_READ, False),
 
     # Process / shell
+    Signal(re.compile(r"(require\(['\"]child_process['\"]|execSync|execFile|spawnSync)", re.I), SandboxEventType.SHELL_EXECUTION, True),
     Signal(re.compile(r"(subprocess|os\.system|os\.popen|shell=True|/bin/sh|/bin/bash)", re.I), SandboxEventType.SHELL_EXECUTION, True),
     Signal(re.compile(r"(Popen|exec|execve|fork\(\))", re.I), SandboxEventType.PROCESS_SPAWN, True),
     Signal(re.compile(r"(setuid|setgid|chmod\s*777|sudo|privilege)", re.I), SandboxEventType.PRIVILEGE_ESCALATION, True),
@@ -47,4 +48,17 @@ SIGNALS: list[Signal] = [
     Signal(re.compile(r"open\(.*['\"]w['\"]|write\(|\.write\(", re.I), SandboxEventType.FILE_WRITE, False),
     Signal(re.compile(r"(os\.remove|os\.unlink|shutil\.rmtree|unlink\()", re.I), SandboxEventType.FILE_DELETE, True),
     Signal(re.compile(r"open\(.*['\"]r['\"]|\.read\(|readlines\(", re.I), SandboxEventType.FILE_READ, False),
+
+    # Strace syscall patterns
+    Signal(re.compile(r"connect\(.*AF_INET", re.I), SandboxEventType.NETWORK_CONNECT, True),
+    Signal(re.compile(r"execve\(", re.I), SandboxEventType.PROCESS_SPAWN, True),
+    Signal(re.compile(r"openat\(.*O_WRONLY|openat\(.*O_RDWR", re.I), SandboxEventType.FILE_WRITE, False),
+    Signal(re.compile(r"unlinkat?\(", re.I), SandboxEventType.FILE_DELETE, True),
+    Signal(re.compile(r"setuid|setgid|setreuid|setregid", re.I), SandboxEventType.PRIVILEGE_ESCALATION, True),
+
+    # Node.js-specific patterns
+    Signal(re.compile(r"(https?|axios|fetch|node-fetch|got)\.(get|post|request)", re.I), SandboxEventType.NETWORK_CONNECT, True),
+    Signal(re.compile(r"(fs\.writeFile|fs\.appendFile|createWriteStream)", re.I), SandboxEventType.FILE_WRITE, False),
+    Signal(re.compile(r"(fs\.unlink|rimraf)", re.I), SandboxEventType.FILE_DELETE, True),
+    Signal(re.compile(r"process\.env", re.I), SandboxEventType.ENV_READ, False),
 ]

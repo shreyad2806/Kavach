@@ -45,7 +45,19 @@ def aws_setup():
         ddb.create_table(
             TableName="test-artifacts",
             KeySchema=[{"AttributeName": "artifact_id", "KeyType": "HASH"}],
-            AttributeDefinitions=[{"AttributeName": "artifact_id", "AttributeType": "S"}],
+            AttributeDefinitions=[
+                {"AttributeName": "artifact_id", "AttributeType": "S"},
+                {"AttributeName": "source_url", "AttributeType": "S"},
+                {"AttributeName": "created_at", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[{
+                "IndexName": "SourceUrlIndex",
+                "KeySchema": [
+                    {"AttributeName": "source_url", "KeyType": "HASH"},
+                    {"AttributeName": "created_at", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            }],
             BillingMode="PAY_PER_REQUEST",
         )
         ddb.create_table(
@@ -215,3 +227,33 @@ def test_handler_sha256_is_deterministic(aws_setup):
     sha1 = json.loads(r1["body"])["sha256"]
     sha2 = json.loads(r2["body"])["sha256"]
     assert sha1 == sha2
+
+
+def test_handler_first_scan_has_no_previous_fields(aws_setup):
+    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES), \
+         patch("scanner.gateway.handler._start_pipeline"):
+        resp = handler(_event(VALID_BODY), None)
+
+    artifact_id = json.loads(resp["body"])["artifact_id"]
+    record = get_artifact(artifact_id)
+    assert record.scan_count == 1
+    assert record.previous_sha256 is None
+    assert record.previous_verdict is None
+
+
+def test_handler_second_scan_populates_inter_run_fields(aws_setup):
+    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES), \
+         patch("scanner.gateway.handler._start_pipeline"):
+        r1 = handler(_event(VALID_BODY), None)
+
+    # Second scan of the same URL
+    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES), \
+         patch("scanner.gateway.handler._start_pipeline"):
+        r2 = handler(_event(VALID_BODY), None)
+
+    id2 = json.loads(r2["body"])["artifact_id"]
+    record2 = get_artifact(id2)
+    sha1 = json.loads(r1["body"])["sha256"]
+
+    assert record2.scan_count == 2
+    assert record2.previous_sha256 == sha1

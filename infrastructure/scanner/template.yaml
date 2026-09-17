@@ -68,9 +68,22 @@ Resources:
       AttributeDefinitions:
         - AttributeName: artifact_id
           AttributeType: S
+        - AttributeName: source_url
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
       KeySchema:
         - AttributeName: artifact_id
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: SourceUrlIndex
+          KeySchema:
+            - AttributeName: source_url
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
 
   FindingsTable:
     Type: AWS::DynamoDB::Table

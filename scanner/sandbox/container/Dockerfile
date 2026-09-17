@@ -7,6 +7,7 @@ FROM python:3.11-slim
 # Install strace for syscall-level monitoring and boto3 for S3/DynamoDB access
 RUN apt-get update && apt-get install -y --no-install-recommends \
     strace \
+    nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir boto3==1.34.0

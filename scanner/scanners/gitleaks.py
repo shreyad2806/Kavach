@@ -2,7 +2,7 @@
 Gitleaks scanner wrapper — secret and credential detection.
 Detects: AWS keys, API tokens, private keys, passwords hardcoded in source.
 
-For GitHub URLs: clones the full repo so git history is scanned.
+For GitHub, GitLab, and Bitbucket URLs: clones the full repo so git history is scanned.
 For plain files/archives: runs with --no-git on extracted contents.
 """
 
@@ -18,14 +18,20 @@ from scanner.scanners.base import BaseScanner
 log = get_logger(__name__)
 
 
-def _is_github_url(source_url: str) -> bool:
-    return "github.com" in source_url and not source_url.endswith(
-        (".tar.gz", ".zip", ".whl", ".tgz")
+_GIT_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
+_ARCHIVE_EXTS = (".tar.gz", ".zip", ".whl", ".tgz", ".tar.bz2")
+
+
+def _is_git_repo_url(source_url: str) -> bool:
+    url_lower = source_url.lower()
+    return (
+        any(host in url_lower for host in _GIT_HOSTS)
+        and not url_lower.endswith(_ARCHIVE_EXTS)
     )
 
 
 def _clone_repo(source_url: str, dest_dir: str) -> bool:
-    """Clone a GitHub repo into dest_dir. Returns True on success."""
+    """Clone a git repo into dest_dir. Returns True on success."""
     try:
         subprocess.run(
             ["git", "clone", "--depth=50", source_url, dest_dir],
@@ -51,7 +57,7 @@ class GitleaksScanner(BaseScanner):
         self._source_url = source_url
 
     def scan(self, artifact_id: str, artifact_path: str) -> list[ScanFinding]:
-        if self._source_url and _is_github_url(self._source_url):
+        if self._source_url and _is_git_repo_url(self._source_url):
             return self._scan_with_history(artifact_id)
         return self._scan_no_git(artifact_id, artifact_path)
 

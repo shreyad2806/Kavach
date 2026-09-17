@@ -237,6 +237,26 @@ def test_gitleaks_always_critical_severity():
         assert f.severity == FindingSeverity.CRITICAL
 
 
+@pytest.mark.parametrize("url", [
+    "https://github.com/org/repo",
+    "https://gitlab.com/org/repo",
+    "https://bitbucket.org/org/repo",
+])
+def test_gitleaks_git_repo_urls_use_history(url):
+    from scanner.scanners.gitleaks import _is_git_repo_url
+    assert _is_git_repo_url(url) is True
+
+
+@pytest.mark.parametrize("url", [
+    "https://github.com/org/repo/archive/main.tar.gz",
+    "https://files.example.com/package.whl",
+    "https://example.com/pkg.zip",
+])
+def test_gitleaks_archive_urls_use_no_git(url):
+    from scanner.scanners.gitleaks import _is_git_repo_url
+    assert _is_git_repo_url(url) is False
+
+
 # ==============================================================================
 # CROSS-SCANNER: all scanners return ScanFinding with correct artifact_id
 # ==============================================================================

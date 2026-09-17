@@ -31,7 +31,7 @@ from scanner.logger import get_logger
 
 log = get_logger(__name__)
 from scanner.models.artifact import ArtifactRecord, ArtifactRequest, ArtifactStatus
-from scanner.storage.dynamodb import put_artifact, update_artifact_status
+from scanner.storage.dynamodb import put_artifact, update_artifact_status, get_latest_artifact_by_url
 from scanner.storage.s3 import upload_to_quarantine
 
 
@@ -70,6 +70,9 @@ def handler(event: dict, context) -> dict:
     artifact_id = f"art-{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
 
+    # Look up any prior scan of the same URL for inter-run comparison
+    prior = get_latest_artifact_by_url(request.source_url)
+
     # Create the initial artifact record
     record = ArtifactRecord(
         artifact_id=artifact_id,
@@ -79,6 +82,9 @@ def handler(event: dict, context) -> dict:
         status=ArtifactStatus.DOWNLOADING,
         created_at=now,
         updated_at=now,
+        previous_sha256=prior.sha256 if prior else None,
+        previous_verdict=prior.status.value if prior else None,
+        scan_count=(prior.scan_count + 1) if prior else 1,
     )
 
     try:

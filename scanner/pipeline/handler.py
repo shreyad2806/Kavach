@@ -14,6 +14,7 @@ Each invocation is stateless — state lives in DynamoDB.
 import os
 import tempfile
 
+from scanner.agent.scanner_agent import explain_scan
 from scanner.logger import get_logger
 from scanner.models.artifact import ArtifactStatus
 from scanner.sandbox.runner import run as sandbox_run
@@ -147,9 +148,20 @@ def handler(event: dict, context) -> dict:
             artifact_id=artifact_id,
             sha256=record.sha256 or "",
             findings=findings,
+            previous_sha256=record.previous_sha256,
+            scan_count=record.scan_count,
         )
         log.info("verdict produced", extra={"artifact_id": artifact_id, "decision": verdict.decision.value, "risk_score": verdict.risk_score, "risk_level": verdict.risk_level.value})
-        put_verdict(verdict)
+
+        # Run the Bedrock agent to produce a human-readable explanation
+        agent_report = None
+        try:
+            agent_report = explain_scan(artifact_id)
+            log.info("agent report generated", extra={"artifact_id": artifact_id})
+        except Exception as e:
+            log.warning("agent report failed — verdict unaffected", extra={"artifact_id": artifact_id, "error": str(e)})
+
+        put_verdict(verdict, agent_report=agent_report)
 
         if verdict.decision.value == "APPROVED":
             approved_key = promote_to_approved(artifact_id, record.source_url)
@@ -168,6 +180,7 @@ def handler(event: dict, context) -> dict:
             "decision": verdict.decision.value,
             "risk_score": verdict.risk_score,
             "risk_level": verdict.risk_level.value,
+            "agent_report": agent_report,
         })
 
     return _error(f"Unknown stage: {stage}")
