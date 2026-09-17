@@ -1,0 +1,2 @@
+{"event_id": "f306c7ab-7191-4d36-92a7-b11d301a6861", "agent_id": "coding", "event_type": "TOOL_CALL", "operation": "math.add", "target": null, "success": false, "metadata": {}, "timestamp": "2026-09-17T19:26:50.294822+00:00"}
+{"event_id": "082c68f2-8e35-4e62-82a5-415f4d32092a", "agent_id": "coding", "event_type": "TOOL_CALL", "operation": "math.add", "target": null, "success": true, "metadata": {}, "timestamp": "2026-09-17T19:29:36.772225+00:00"}

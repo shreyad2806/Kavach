@@ -1,0 +1,22 @@
+agent:
+  id: coding
+  name: Coding Agent
+  role: developer
+
+capabilities:
+  - file.read
+  - file.write
+  - tests.run
+  - agent.message
+
+workspace:
+  path: sandbox/workspace/coding
+
+network:
+  internet_access: false
+
+communication:
+  allowed_receivers:
+    - orchestrator
+    - research
+    - verification

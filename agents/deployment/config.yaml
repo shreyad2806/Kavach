@@ -1,0 +1,25 @@
+agent:
+  id: deployment
+  name: Deployment Agent
+  role: deployer
+
+capabilities:
+  - deployment.simulate
+  - infrastructure.inspect
+  - deployment.status
+  - agent.message
+
+workspace:
+  path: sandbox/workspace/deployment
+
+network:
+  internet_access: false
+
+aws:
+  credentials: false
+  real_deployment: false
+
+communication:
+  allowed_receivers:
+    - orchestrator
+    - verification

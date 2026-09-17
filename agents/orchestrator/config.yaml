@@ -1,0 +1,16 @@
+agent:
+  id: orchestrator
+  name: Orchestrator Agent
+  role: coordinator
+
+capabilities:
+  - task.delegate
+  - result.receive
+  - workflow.coordinate
+
+communication:
+  allowed_receivers:
+    - research
+    - coding
+    - deployment
+    - verification
