@@ -153,6 +153,9 @@ def handler(event: dict, context) -> dict:
         )
         log.info("verdict produced", extra={"artifact_id": artifact_id, "decision": verdict.decision.value, "risk_score": verdict.risk_score, "risk_level": verdict.risk_level.value})
 
+        # Write verdict first so the agent can read it via its tools
+        put_verdict(verdict)
+
         # Run the Bedrock agent to produce a human-readable explanation
         agent_report = None
         try:
@@ -161,7 +164,8 @@ def handler(event: dict, context) -> dict:
         except Exception as e:
             log.warning("agent report failed — verdict unaffected", extra={"artifact_id": artifact_id, "error": str(e)})
 
-        put_verdict(verdict, agent_report=agent_report)
+        if agent_report:
+            put_verdict(verdict, agent_report=agent_report)
 
         if verdict.decision.value == "APPROVED":
             approved_key = promote_to_approved(artifact_id, record.source_url)

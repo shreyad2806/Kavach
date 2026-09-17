@@ -14,6 +14,7 @@ import os
 from datetime import datetime, timezone
 
 import boto3
+from boto3.dynamodb.conditions import Key
 
 from scanner.models.artifact import ArtifactRecord, ArtifactStatus
 from scanner.models.finding import ScanFinding
@@ -56,8 +57,7 @@ def get_latest_artifact_by_url(source_url: str) -> ArtifactRecord | None:
     """
     resp = _artifacts_table().query(
         IndexName="SourceUrlIndex",
-        KeyConditionExpression="source_url = :url",
-        ExpressionAttributeValues={":url": source_url},
+        KeyConditionExpression=Key("source_url").eq(source_url),
         ScanIndexForward=False,  # newest first
         Limit=1,
     )
@@ -93,12 +93,17 @@ def put_finding(finding: ScanFinding) -> None:
 
 
 def get_findings(artifact_id: str) -> list[ScanFinding]:
-    resp = _findings_table().query(
-        KeyConditionExpression="artifact_id = :id",
-        ExpressionAttributeValues={":id": artifact_id},
-    )
-    items = resp.get("Items", [])
-    # Strip the internal sort key before validating against the model
+    items = []
+    kwargs: dict = {
+        "KeyConditionExpression": Key("artifact_id").eq(artifact_id),
+    }
+    while True:
+        resp = _findings_table().query(**kwargs)
+        items.extend(resp.get("Items", []))
+        last = resp.get("LastEvaluatedKey")
+        if not last:
+            break
+        kwargs["ExclusiveStartKey"] = last
     for item in items:
         item.pop("sk", None)
     return [ScanFinding.model_validate(item) for item in items]
