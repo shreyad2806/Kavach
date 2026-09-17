@@ -1,0 +1,16 @@
+# Scanner pipeline dependencies
+pydantic>=2.0.0
+boto3>=1.34.0
+
+# Static analysis tools (run as subprocesses inside Lambda container)
+bandit>=1.7.9
+semgrep>=1.72.0
+pip-audit>=2.7.3
+
+# Strands Agents SDK (scanner agent)
+strands-agents>=0.1.0
+strands-agents-tools>=0.1.0
+
+# Dev / test
+pytest>=8.0.0
+moto[s3,dynamodb,stepfunctions,ecs]>=5.0.0

@@ -15,6 +15,7 @@ os.environ.setdefault("SCANNER_BUCKET", "test-scanner-bucket")
 os.environ.setdefault("ARTIFACTS_TABLE", "test-artifacts")
 os.environ.setdefault("FINDINGS_TABLE", "test-findings")
 os.environ.setdefault("VERDICTS_TABLE", "test-verdicts")
+os.environ.setdefault("PIPELINE_STATE_MACHINE_ARN", "arn:aws:states:us-east-1:123:stateMachine:test")
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
@@ -132,7 +133,8 @@ def test_fetch_network_error():
 # ==============================================================================
 
 def test_handler_success(aws_setup):
-    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES):
+    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES), \
+         patch("scanner.gateway.handler._start_pipeline"):
         resp = handler(_event(VALID_BODY), None)
 
     assert resp["statusCode"] == 201
@@ -143,7 +145,8 @@ def test_handler_success(aws_setup):
 
 
 def test_handler_creates_artifact_record(aws_setup):
-    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES):
+    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES), \
+         patch("scanner.gateway.handler._start_pipeline"):
         resp = handler(_event(VALID_BODY), None)
 
     artifact_id = json.loads(resp["body"])["artifact_id"]
@@ -190,7 +193,8 @@ def test_handler_artifact_too_large_marks_failed(aws_setup):
 
 
 def test_handler_quarantine_key_never_in_approved_prefix(aws_setup):
-    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES):
+    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES), \
+         patch("scanner.gateway.handler._start_pipeline"):
         resp = handler(_event(VALID_BODY), None)
 
     artifact_id = json.loads(resp["body"])["artifact_id"]
@@ -201,9 +205,11 @@ def test_handler_quarantine_key_never_in_approved_prefix(aws_setup):
 
 def test_handler_sha256_is_deterministic(aws_setup):
     """Same bytes must always produce the same hash."""
-    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES):
+    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES), \
+         patch("scanner.gateway.handler._start_pipeline"):
         r1 = handler(_event(VALID_BODY), None)
-    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES):
+    with patch("scanner.gateway.handler.fetch", return_value=FAKE_ARTIFACT_BYTES), \
+         patch("scanner.gateway.handler._start_pipeline"):
         r2 = handler(_event(VALID_BODY), None)
 
     sha1 = json.loads(r1["body"])["sha256"]

@@ -1,134 +1,159 @@
 """
-Sandbox runner — executes an artifact inside a restricted Docker container
-and returns a SandboxReport.
+Sandbox runner — triggers an AWS Fargate task to execute the artifact
+in an isolated container and waits for the result written to DynamoDB.
 
-Security constraints enforced on the container:
-  - No network access (--network none)
-  - Read-only root filesystem (--read-only)
-  - Writable /tmp only via tmpfs
-  - No new privileges (--security-opt no-new-privileges)
-  - Dropped all Linux capabilities (--cap-drop ALL)
-  - Non-root user (--user 65534 = nobody)
-  - Hard CPU and memory limits
-  - Execution timeout (default 30s)
+Why Fargate instead of Docker subprocess:
+  - Lambda has no Docker daemon — subprocess docker run simply fails
+  - Fargate gives real container isolation with the same security constraints
+  - Network isolation enforced at VPC level (no internet, no agent subnet access)
+  - Results are written to DynamoDB by the Fargate task and read back here
 
-The artifact directory is mounted read-only at /artifact inside the container.
-The container runs: python /artifact/<entrypoint> and we capture all output.
+Security constraints enforced on the Fargate task (defined in task definition):
+  - VPC with no internet gateway (FARGATE_SUBNET_ID must be a private subnet)
+  - Security group with no outbound rules
+  - Read-only root filesystem
+  - Non-root user (UID 65534)
+  - Hard CPU (0.25 vCPU) and memory (512 MB) limits
+  - 30 second execution timeout enforced by the task itself
 
-For the hackathon demo the base image is python:3.11-slim.
-In production this would be replaced with a hardened minimal image.
+Environment variables required:
+  FARGATE_CLUSTER_ARN       — ECS cluster to run the task on
+  FARGATE_TASK_DEF_ARN      — task definition ARN for the sandbox image
+  FARGATE_SUBNET_ID         — private subnet ID (no internet route)
+  FARGATE_SECURITY_GROUP_ID — security group with no outbound rules
+  SANDBOX_RESULTS_TABLE     — DynamoDB table where Fargate writes its report
 """
 
-import subprocess
+import json
+import os
 import time
 from datetime import datetime, timezone
-from pathlib import Path
+
+import boto3
 
 from scanner.models.sandbox import SandboxReport
-from scanner.sandbox.observer import observe
 
-SANDBOX_IMAGE = "python:3.11-slim"
-DEFAULT_TIMEOUT = 30  # seconds
-MEMORY_LIMIT = "128m"
-CPU_LIMIT = "0.5"
+_POLL_INTERVAL = 5   # seconds between status checks
+_MAX_WAIT = 120      # seconds before we give up waiting for the task
 
 
-class SandboxError(Exception):
-    pass
+def _ecs():
+    return boto3.client("ecs")
 
 
-def _find_entrypoint(artifact_path: str) -> str | None:
-    """Find the most likely Python entrypoint in the artifact directory."""
-    base = Path(artifact_path)
-    for candidate in ("setup.py", "main.py", "app.py", "__main__.py"):
-        if (base / candidate).exists():
-            return candidate
-    # Fall back to first .py file found
-    py_files = list(base.glob("*.py"))
-    return py_files[0].name if py_files else None
+def _ddb():
+    return boto3.resource("dynamodb")
+
+
+def _get_sandbox_result(artifact_id: str) -> SandboxReport | None:
+    """Read the sandbox report written by the Fargate task from DynamoDB."""
+    table_name = os.environ.get("SANDBOX_RESULTS_TABLE")
+    if not table_name:
+        return None
+    table = _ddb().Table(table_name)
+    resp = table.get_item(Key={"artifact_id": artifact_id})
+    item = resp.get("Item")
+    if not item:
+        return None
+    return SandboxReport.model_validate(item)
 
 
 def run(
     artifact_id: str,
-    artifact_path: str,
-    timeout: int = DEFAULT_TIMEOUT,
+    artifact_path: str,  # kept for interface compatibility — Fargate reads from S3 directly
+    timeout: int = _MAX_WAIT,
 ) -> SandboxReport:
     """
-    Execute the artifact in a restricted Docker container.
+    Trigger a Fargate sandbox task for the artifact and wait for its report.
     Returns a SandboxReport regardless of outcome — never raises.
     """
-    started = time.monotonic()
     now = datetime.now(timezone.utc)
 
-    entrypoint = _find_entrypoint(artifact_path)
-    if not entrypoint:
+    cluster = os.environ.get("FARGATE_CLUSTER_ARN")
+    task_def = os.environ.get("FARGATE_TASK_DEF_ARN")
+    subnet = os.environ.get("FARGATE_SUBNET_ID")
+    sg = os.environ.get("FARGATE_SECURITY_GROUP_ID")
+
+    if not all([cluster, task_def, subnet, sg]):
         return SandboxReport(
             artifact_id=artifact_id,
             executed=False,
-            execution_error="No Python entrypoint found in artifact",
+            execution_error="Fargate environment variables not configured",
             timestamp=now,
         )
-
-    cmd = [
-        "docker", "run",
-        "--rm",
-        "--network", "none",
-        "--read-only",
-        "--tmpfs", "/tmp:size=32m",
-        "--security-opt", "no-new-privileges",
-        "--cap-drop", "ALL",
-        "--user", "65534",
-        "--memory", MEMORY_LIMIT,
-        "--cpus", CPU_LIMIT,
-        "--volume", f"{artifact_path}:/artifact:ro",
-        SANDBOX_IMAGE,
-        "python", f"/artifact/{entrypoint}",
-    ]
 
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        output = result.stdout + "\n" + result.stderr
-        exit_code = result.returncode
-    except subprocess.TimeoutExpired:
-        duration = time.monotonic() - started
-        return SandboxReport(
-            artifact_id=artifact_id,
-            executed=True,
-            execution_error=f"Sandbox timed out after {timeout}s",
-            duration_seconds=round(duration, 2),
-            timestamp=now,
-        )
-    except FileNotFoundError:
-        # Docker not installed — fail gracefully
-        return SandboxReport(
-            artifact_id=artifact_id,
-            executed=False,
-            execution_error="Docker not available in this environment",
-            timestamp=now,
+        resp = _ecs().run_task(
+            cluster=cluster,
+            taskDefinition=task_def,
+            launchType="FARGATE",
+            networkConfiguration={
+                "awsvpcConfiguration": {
+                    "subnets": [subnet],
+                    "securityGroups": [sg],
+                    "assignPublicIp": "DISABLED",  # no public IP — fully private
+                }
+            },
+            overrides={
+                "containerOverrides": [{
+                    "name": "sandbox",
+                    "environment": [
+                        {"name": "ARTIFACT_ID", "value": artifact_id},
+                        {"name": "ARTIFACTS_TABLE", "value": os.environ.get("ARTIFACTS_TABLE", "")},
+                        {"name": "SANDBOX_RESULTS_TABLE", "value": os.environ.get("SANDBOX_RESULTS_TABLE", "")},
+                        {"name": "SCANNER_BUCKET", "value": os.environ.get("SCANNER_BUCKET", "")},
+                    ],
+                }]
+            },
         )
     except Exception as e:
         return SandboxReport(
             artifact_id=artifact_id,
             executed=False,
-            execution_error=str(e),
+            execution_error=f"Failed to start Fargate task: {e}",
             timestamp=now,
         )
 
-    duration = round(time.monotonic() - started, 2)
-    events = observe(artifact_id, output)
-    suspicious_count = sum(1 for e in events if e.suspicious)
+    failures = resp.get("failures", [])
+    if failures:
+        return SandboxReport(
+            artifact_id=artifact_id,
+            executed=False,
+            execution_error=f"Fargate task failed to start: {failures[0].get('reason', 'unknown')}",
+            timestamp=now,
+        )
 
+    task_arn = resp["tasks"][0]["taskArn"]
+
+    # Poll until the task stops or we hit the timeout
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        time.sleep(_POLL_INTERVAL)
+        try:
+            desc = _ecs().describe_tasks(cluster=cluster, tasks=[task_arn])
+            task = desc["tasks"][0]
+            last_status = task.get("lastStatus", "")
+            if last_status == "STOPPED":
+                break
+        except Exception:
+            break
+    else:
+        return SandboxReport(
+            artifact_id=artifact_id,
+            executed=True,
+            execution_error=f"Timed out waiting for Fargate task after {timeout}s",
+            timestamp=now,
+        )
+
+    # Read the report the Fargate task wrote to DynamoDB
+    report = _get_sandbox_result(artifact_id)
+    if report:
+        return report
+
+    # Task ran but wrote no report — treat as executed with no findings
     return SandboxReport(
         artifact_id=artifact_id,
         executed=True,
-        exit_code=exit_code,
-        events=events,
-        suspicious_event_count=suspicious_count,
-        duration_seconds=duration,
+        execution_error="Fargate task completed but wrote no sandbox report",
         timestamp=now,
     )

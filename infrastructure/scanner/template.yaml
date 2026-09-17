@@ -1,10 +1,23 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: AgentShield Scanner Pipeline — API Gateway, Lambda, Step Functions, DynamoDB, S3
+Description: Kavach Scanner Pipeline — API Gateway, Lambda (container), Step Functions, Fargate, DynamoDB, S3
+
+Parameters:
+  SandboxImageUri:
+    Type: String
+    Description: ECR URI for the Fargate sandbox container image (e.g. 123456789.dkr.ecr.us-east-1.amazonaws.com/kavach-sandbox:latest)
+  LambdaImageUri:
+    Type: String
+    Description: ECR URI for the Lambda scanner container image (e.g. 123456789.dkr.ecr.us-east-1.amazonaws.com/kavach-scanner:latest)
+  PrivateSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet ID for Fargate tasks (must have no internet route)
+  SandboxSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group for sandbox Fargate tasks (no outbound rules)
 
 Globals:
   Function:
-    Runtime: python3.11
     Timeout: 180
     MemorySize: 512
     Environment:
@@ -13,12 +26,17 @@ Globals:
         ARTIFACTS_TABLE: !Ref ArtifactsTable
         FINDINGS_TABLE: !Ref FindingsTable
         VERDICTS_TABLE: !Ref VerdictsTable
+        SANDBOX_RESULTS_TABLE: !Ref SandboxResultsTable
         PIPELINE_STATE_MACHINE_ARN: !Ref ScannerStateMachine
+        FARGATE_CLUSTER_ARN: !GetAtt SandboxCluster.Arn
+        FARGATE_TASK_DEF_ARN: !Ref SandboxTaskDefinition
+        FARGATE_SUBNET_ID: !Ref PrivateSubnetId
+        FARGATE_SECURITY_GROUP_ID: !Ref SandboxSecurityGroupId
 
 Resources:
 
   # ------------------------------------------------------------------ #
-  # S3 — single bucket, quarantine/ and approved/ are key prefixes      #
+  # S3 — quarantine/ and approved/ prefixes in one bucket              #
   # ------------------------------------------------------------------ #
   ArtifactBucket:
     Type: AWS::S3::Bucket
@@ -32,6 +50,13 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          # Auto-delete quarantine artifacts after 7 days
+          - Id: ExpireQuarantine
+            Status: Enabled
+            Prefix: quarantine/
+            ExpirationInDays: 7
 
   # ------------------------------------------------------------------ #
   # DynamoDB tables                                                      #
@@ -73,14 +98,113 @@ Resources:
         - AttributeName: artifact_id
           KeyType: HASH
 
+  SandboxResultsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: artifact_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: artifact_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
   # ------------------------------------------------------------------ #
-  # Lambda — Artifact Gateway (POST /artifacts/scan)                    #
+  # IAM — Fargate task execution role                                   #
+  # ------------------------------------------------------------------ #
+  SandboxTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  SandboxTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SandboxTaskPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Read artifact from quarantine only — cannot touch approved/
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${ArtifactBucket.Arn}/quarantine/*"
+              # Write sandbox report to DynamoDB
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                Resource: !GetAtt SandboxResultsTable.Arn
+
+  # ------------------------------------------------------------------ #
+  # ECS Fargate — sandbox cluster and task definition                  #
+  # ------------------------------------------------------------------ #
+  SandboxCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: kavach-sandbox-cluster
+
+  SandboxTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: kavach-sandbox
+      Cpu: "256"        # 0.25 vCPU
+      Memory: "512"     # 512 MB
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt SandboxTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt SandboxTaskRole.Arn
+      ContainerDefinitions:
+        - Name: sandbox
+          Image: !Ref SandboxImageUri
+          Essential: true
+          ReadonlyRootFilesystem: true
+          User: "65534"   # nobody
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /kavach/sandbox
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: sandbox
+          # No port mappings — task has no inbound or outbound network
+          # Network isolation is enforced by the security group and private subnet
+
+  SandboxLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /kavach/sandbox
+      RetentionInDays: 7
+
+  # ------------------------------------------------------------------ #
+  # Lambda — Artifact Gateway (POST /artifacts/scan)                   #
+  # Uses container image so all scanner tools are available             #
   # ------------------------------------------------------------------ #
   GatewayFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../../
-      Handler: scanner.gateway.handler.handler
+      PackageType: Image
+      ImageUri: !Ref LambdaImageUri
+      ImageConfig:
+        Command: ["scanner.gateway.handler.handler"]
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ArtifactsTable
@@ -96,13 +220,15 @@ Resources:
             Method: post
 
   # ------------------------------------------------------------------ #
-  # Lambda — Pipeline stages (static_scan / sandbox / verdict)          #
+  # Lambda — Pipeline stages (static_scan / sandbox / verdict)         #
   # ------------------------------------------------------------------ #
   PipelineFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../../
-      Handler: scanner.pipeline.handler.handler
+      PackageType: Image
+      ImageUri: !Ref LambdaImageUri
+      ImageConfig:
+        Command: ["scanner.pipeline.handler.handler"]
       Timeout: 300
       MemorySize: 1024
       Policies:
@@ -112,8 +238,22 @@ Resources:
             TableName: !Ref FindingsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref VerdictsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SandboxResultsTable
         - S3CrudPolicy:
             BucketName: !Ref ArtifactBucket
+        # Permission to trigger and describe Fargate tasks
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ecs:RunTask
+                - ecs:DescribeTasks
+              Resource: "*"
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource:
+                - !GetAtt SandboxTaskExecutionRole.Arn
+                - !GetAtt SandboxTaskRole.Arn
 
   # ------------------------------------------------------------------ #
   # Step Functions state machine                                         #
@@ -136,3 +276,7 @@ Outputs:
     Value: !Ref ArtifactBucket
   StateMachineArn:
     Value: !Ref ScannerStateMachine
+  SandboxClusterArn:
+    Value: !GetAtt SandboxCluster.Arn
+  SandboxTaskDefinitionArn:
+    Value: !Ref SandboxTaskDefinition

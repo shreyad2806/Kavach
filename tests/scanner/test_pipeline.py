@@ -15,6 +15,7 @@ os.environ.setdefault("SCANNER_BUCKET", "test-scanner-bucket")
 os.environ.setdefault("ARTIFACTS_TABLE", "test-artifacts")
 os.environ.setdefault("FINDINGS_TABLE", "test-findings")
 os.environ.setdefault("VERDICTS_TABLE", "test-verdicts")
+os.environ.setdefault("SANDBOX_RESULTS_TABLE", "test-sandbox-results")
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
@@ -200,7 +201,6 @@ def test_static_scan_updates_status_to_scanning(aws_setup):
 
 def test_sandbox_stage_success(aws_setup):
     _seed_artifact()
-    upload_to_quarantine("art-001", "https://example.com/pkg.tar.gz", b"print('hello')")
 
     with patch("scanner.pipeline.handler.sandbox_run", return_value=_clean_sandbox_report()):
         resp = handler({"stage": "sandbox", "artifact_id": "art-001"}, None)
@@ -212,7 +212,6 @@ def test_sandbox_stage_success(aws_setup):
 
 def test_sandbox_stage_updates_status(aws_setup):
     _seed_artifact()
-    upload_to_quarantine("art-001", "https://example.com/pkg.tar.gz", b"code")
 
     with patch("scanner.pipeline.handler.sandbox_run", return_value=_clean_sandbox_report()):
         handler({"stage": "sandbox", "artifact_id": "art-001"}, None)

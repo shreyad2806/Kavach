@@ -1,13 +1,11 @@
 """
 Sandbox tests.
-subprocess.run and filesystem are mocked — no Docker needed.
+Observer tests use real signal matching.
+Runner tests mock Fargate ECS calls — no Docker or AWS credentials needed.
 """
 
-import subprocess
-import tempfile
 from datetime import datetime, timezone
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -98,106 +96,117 @@ def test_observe_artifact_id_set_on_all_events():
 
 # ==============================================================================
 # RUNNER TESTS
+# Runner now triggers Fargate — mock boto3 ECS and DynamoDB calls
 # ==============================================================================
 
-def _mock_docker(stdout: str = "", stderr: str = "", returncode: int = 0):
-    m = MagicMock()
-    m.stdout = stdout
-    m.stderr = stderr
-    m.returncode = returncode
-    return m
+import os
+os.environ.setdefault("FARGATE_CLUSTER_ARN", "arn:aws:ecs:us-east-1:123:cluster/test")
+os.environ.setdefault("FARGATE_TASK_DEF_ARN", "arn:aws:ecs:us-east-1:123:task-definition/sandbox:1")
+os.environ.setdefault("FARGATE_SUBNET_ID", "subnet-abc123")
+os.environ.setdefault("FARGATE_SECURITY_GROUP_ID", "sg-abc123")
+os.environ.setdefault("SANDBOX_RESULTS_TABLE", "test-sandbox-results")
+os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
+os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
+os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
+
+
+def _make_report(artifact_id="art-001", executed=True, suspicious_count=0, events=None):
+    from scanner.models.sandbox import SandboxReport
+    from datetime import datetime, timezone
+    return SandboxReport(
+        artifact_id=artifact_id,
+        executed=executed,
+        exit_code=0 if executed else None,
+        events=events or [],
+        suspicious_event_count=suspicious_count,
+        timestamp=datetime.now(timezone.utc),
+    )
 
 
 def test_runner_success_clean_output():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        Path(tmpdir, "main.py").write_text("print('hello')")
-        with patch("subprocess.run", return_value=_mock_docker(stdout="hello\n")):
-            report = run("art-001", tmpdir)
+    with patch("scanner.sandbox.runner._ecs") as mock_ecs, \
+         patch("scanner.sandbox.runner._get_sandbox_result", return_value=_make_report()):
+        mock_ecs.return_value.run_task.return_value = {
+            "tasks": [{"taskArn": "arn:aws:ecs:us-east-1:123:task/abc"}],
+            "failures": [],
+        }
+        mock_ecs.return_value.describe_tasks.return_value = {
+            "tasks": [{"lastStatus": "STOPPED"}]
+        }
+        report = run("art-001", "")
 
     assert report.executed is True
-    assert report.exit_code == 0
     assert report.execution_error is None
-    assert report.duration_seconds is not None
 
 
-def test_runner_detects_shell_in_output():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        Path(tmpdir, "setup.py").write_text("import subprocess; subprocess.run('/bin/sh')")
-        output = "subprocess.run('/bin/sh', shell=True)"
-        with patch("subprocess.run", return_value=_mock_docker(stdout=output)):
-            report = run("art-001", tmpdir)
+def test_runner_fargate_start_failure_returns_report():
+    with patch("scanner.sandbox.runner._ecs") as mock_ecs:
+        mock_ecs.return_value.run_task.side_effect = RuntimeError("ECS unavailable")
+        report = run("art-001", "")
 
-    assert report.executed is True
-    assert report.suspicious_event_count > 0
-    assert any(e.event_type == SandboxEventType.SHELL_EXECUTION for e in report.events)
+    assert report.executed is False
+    assert "Failed to start Fargate task" in report.execution_error
 
 
-def test_runner_detects_network_in_output():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        Path(tmpdir, "main.py").write_text("")
-        output = "requests.get('http://evil.com')\nconnect((192.168.1.1, 80))"
-        with patch("subprocess.run", return_value=_mock_docker(stdout=output)):
-            report = run("art-001", tmpdir)
+def test_runner_fargate_task_failure_returns_report():
+    with patch("scanner.sandbox.runner._ecs") as mock_ecs:
+        mock_ecs.return_value.run_task.return_value = {
+            "tasks": [],
+            "failures": [{"reason": "RESOURCE:MEMORY"}],
+        }
+        report = run("art-001", "")
 
-    assert any(e.event_type == SandboxEventType.NETWORK_CONNECT for e in report.events)
+    assert report.executed is False
+    assert "RESOURCE:MEMORY" in report.execution_error
 
 
-def test_runner_timeout_returns_report():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        Path(tmpdir, "main.py").write_text("")
-        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("docker", 30)):
-            report = run("art-001", tmpdir, timeout=30)
+def test_runner_missing_env_vars_returns_report():
+    import scanner.sandbox.runner as runner_mod
+    original = runner_mod.os.environ.get
+    # Simulate missing env vars by patching all([cluster, task_def, subnet, sg]) to False
+    with patch.dict("os.environ", {
+        "FARGATE_CLUSTER_ARN": "",
+        "FARGATE_TASK_DEF_ARN": "",
+        "FARGATE_SUBNET_ID": "",
+        "FARGATE_SECURITY_GROUP_ID": "",
+    }):
+        report = run("art-001", "")
+
+    assert report.executed is False
+    assert "not configured" in report.execution_error
+
+
+def test_runner_no_report_written_returns_graceful():
+    with patch("scanner.sandbox.runner._ecs") as mock_ecs, \
+         patch("scanner.sandbox.runner._get_sandbox_result", return_value=None):
+        mock_ecs.return_value.run_task.return_value = {
+            "tasks": [{"taskArn": "arn:aws:ecs:us-east-1:123:task/abc"}],
+            "failures": [],
+        }
+        mock_ecs.return_value.describe_tasks.return_value = {
+            "tasks": [{"lastStatus": "STOPPED"}]
+        }
+        report = run("art-001", "")
 
     assert report.executed is True
     assert report.execution_error is not None
-    assert "timed out" in report.execution_error
-
-
-def test_runner_docker_not_available():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        Path(tmpdir, "main.py").write_text("")
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            report = run("art-001", tmpdir)
-
-    assert report.executed is False
-    assert "Docker not available" in report.execution_error
-
-
-def test_runner_no_entrypoint_returns_report():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # No .py files
-        report = run("art-001", tmpdir)
-
-    assert report.executed is False
-    assert "entrypoint" in report.execution_error.lower()
-
-
-def test_runner_uses_setup_py_over_main_py():
-    """setup.py should be preferred as entrypoint over main.py."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        Path(tmpdir, "setup.py").write_text("")
-        Path(tmpdir, "main.py").write_text("")
-        with patch("subprocess.run", return_value=_mock_docker()) as mock_run:
-            run("art-001", tmpdir)
-        cmd = mock_run.call_args[0][0]
-        assert any("setup.py" in part for part in cmd)
-
-
-def test_runner_suspicious_event_count_matches():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        Path(tmpdir, "main.py").write_text("")
-        output = "subprocess.run('/bin/sh')\nos.remove('/etc/passwd')"
-        with patch("subprocess.run", return_value=_mock_docker(stdout=output)):
-            report = run("art-001", tmpdir)
-
-    assert report.suspicious_event_count == sum(1 for e in report.events if e.suspicious)
 
 
 def test_runner_never_raises():
-    """Runner must return a SandboxReport even on unexpected errors."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        Path(tmpdir, "main.py").write_text("")
-        with patch("subprocess.run", side_effect=RuntimeError("unexpected")):
-            report = run("art-001", tmpdir)
+    with patch("scanner.sandbox.runner._ecs", side_effect=Exception("unexpected")):
+        report = run("art-001", "")
     assert report is not None
     assert report.executed is False
+
+
+def test_runner_suspicious_event_count_matches():
+    from scanner.models.sandbox import SandboxEvent, SandboxEventType
+    from datetime import datetime, timezone
+    events = [
+        SandboxEvent(artifact_id="art-001", event_type=SandboxEventType.SHELL_EXECUTION,
+                     detail="shell", suspicious=True, timestamp=datetime.now(timezone.utc)),
+        SandboxEvent(artifact_id="art-001", event_type=SandboxEventType.FILE_READ,
+                     detail="read", suspicious=False, timestamp=datetime.now(timezone.utc)),
+    ]
+    report = _make_report(suspicious_count=1, events=events)
+    assert report.suspicious_event_count == sum(1 for e in report.events if e.suspicious)
