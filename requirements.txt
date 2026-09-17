@@ -1,0 +1,52 @@
+# ============================================================
+# Kavach — Zero-Trust Runtime Security for Autonomous Systems
+# Root requirements file
+#
+# Install all dependencies:
+#   pip install -r requirements.txt
+#
+# Scanner-only (Lambda/Fargate):
+#   pip install -r scanner/requirements.txt
+# ============================================================
+
+# -------------------------------------------------------
+# Core
+# -------------------------------------------------------
+pydantic>=2.0.0
+boto3>=1.34.0
+
+# -------------------------------------------------------
+# Scanner — static analysis tools
+# Run as subprocesses inside the Lambda container image.
+# Not needed for local dev unless running real scans.
+# -------------------------------------------------------
+bandit>=1.7.9
+semgrep>=1.72.0
+pip-audit>=2.7.3
+
+# -------------------------------------------------------
+# Scanner — AI explanation layer
+# Strands Agents SDK (core only — custom tools are used,
+# strands-agents-tools is intentionally excluded).
+# Connects to AWS Bedrock; no Anthropic API key needed.
+# -------------------------------------------------------
+strands-agents>=0.1.0
+
+# -------------------------------------------------------
+# API layer
+# -------------------------------------------------------
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+
+# -------------------------------------------------------
+# Shield / runtime monitoring
+# -------------------------------------------------------
+# (shield uses boto3 and pydantic — already listed above)
+
+# -------------------------------------------------------
+# Dev / test
+# -------------------------------------------------------
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+moto[s3,dynamodb,stepfunctions,ecs]>=5.0.0
+httpx>=0.27.0
