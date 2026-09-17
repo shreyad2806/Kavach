@@ -1,0 +1,23 @@
+agent:
+  id: verification
+  name: Verification Agent
+  role: verifier
+
+capabilities:
+  - output.inspect
+  - tests.run
+  - verification.report
+  - agent.message
+
+workspace:
+  path: sandbox/workspace/verification
+
+network:
+  internet_access: false
+
+aws:
+  credentials: false
+
+communication:
+  allowed_receivers:
+    - orchestrator

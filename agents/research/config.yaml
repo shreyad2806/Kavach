@@ -1,0 +1,20 @@
+agent:
+  id: research
+  name: Research Agent
+  role: researcher
+
+capabilities:
+  - web.search
+  - document.read
+  - research.write
+  - agent.message
+
+workspace:
+  path: sandbox/workspace/research
+
+network:
+  internet_access: true
+
+communication:
+  allowed_receivers:
+    - orchestrator
