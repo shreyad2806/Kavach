@@ -1,0 +1,59 @@
+{
+  "$defs": {
+    "AgentId": {
+      "enum": [
+        "orchestrator-01",
+        "research-01",
+        "coding-01",
+        "deployment-01",
+        "verification-01"
+      ],
+      "title": "AgentId",
+      "type": "string"
+    },
+    "AgentRole": {
+      "enum": [
+        "orchestrator",
+        "research",
+        "coding",
+        "deployment",
+        "verification"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    },
+    "SecurityState": {
+      "enum": [
+        "ACTIVE",
+        "SUSPICIOUS",
+        "QUARANTINED",
+        "TERMINATED"
+      ],
+      "title": "SecurityState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Cryptographic / logical agent identity contract.\nRepresents identity and runtime security state only.\nCapabilities are intentionally maintained in a separate contract.",
+  "properties": {
+    "agent_id": {
+      "$ref": "#/$defs/AgentId",
+      "description": "Exact identifier of the registered autonomous agent."
+    },
+    "role": {
+      "$ref": "#/$defs/AgentRole",
+      "description": "Assigned role category of the agent."
+    },
+    "state": {
+      "$ref": "#/$defs/SecurityState",
+      "default": "ACTIVE",
+      "description": "Current runtime security status of the agent."
+    }
+  },
+  "required": [
+    "agent_id",
+    "role"
+  ],
+  "title": "AgentIdentity",
+  "type": "object"
+}

@@ -1,0 +1,180 @@
+{
+  "$defs": {
+    "ActionName": {
+      "enum": [
+        "research.search",
+        "research.read",
+        "coding.read",
+        "coding.write",
+        "coding.test",
+        "deployment.preview",
+        "deployment.deploy",
+        "verification.test",
+        "orchestrator.delegate",
+        "orchestrator.coordinate"
+      ],
+      "title": "ActionName",
+      "type": "string"
+    },
+    "AgentId": {
+      "enum": [
+        "orchestrator-01",
+        "research-01",
+        "coding-01",
+        "deployment-01",
+        "verification-01"
+      ],
+      "title": "AgentId",
+      "type": "string"
+    },
+    "CapabilityName": {
+      "enum": [
+        "research.search",
+        "research.read",
+        "coding.read",
+        "coding.write",
+        "coding.test",
+        "deployment.preview",
+        "deployment.production",
+        "verification.test",
+        "orchestrator.delegate",
+        "orchestrator.coordinate"
+      ],
+      "title": "CapabilityName",
+      "type": "string"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Provenance contract representing the origin and delegation lineage of a request.\nRecords invocation history without executing trust/policy decisions.",
+      "properties": {
+        "task_origin": {
+          "$ref": "#/$defs/AgentId",
+          "description": "The root agent identifier that initiated the task execution."
+        },
+        "delegation_chain": {
+          "description": "Ordered sequence of agent IDs tracing the delegation path to the current agent.",
+          "items": {
+            "$ref": "#/$defs/AgentId"
+          },
+          "minItems": 1,
+          "title": "Delegation Chain",
+          "type": "array"
+        }
+      },
+      "required": [
+        "task_origin",
+        "delegation_chain"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "RequestContext": {
+      "additionalProperties": true,
+      "description": "Minimal context payload for supplemental metadata.\nMust not contain primary request entities (capability, action, resource, source_agent, target_agent).",
+      "properties": {
+        "environment_tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Optional environmental or infrastructure tags.",
+          "title": "Environment Tags",
+          "type": "object"
+        }
+      },
+      "title": "RequestContext",
+      "type": "object"
+    },
+    "ResourceName": {
+      "enum": [
+        "research-data",
+        "workspace",
+        "test-environment",
+        "staging-environment",
+        "production-environment"
+      ],
+      "title": "ResourceName",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "ActionRequest contract representing a runtime request from an agent to the Kavach Gateway.\nSeparates presented capability from requested action.\nContains no authorization calculation logic or decision fields.",
+  "properties": {
+    "request_id": {
+      "description": "Unique request identifier.",
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "timestamp": {
+      "description": "UTC ISO 8601 timestamp of the request.",
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "source_agent": {
+      "$ref": "#/$defs/AgentId",
+      "description": "Identity of the requesting agent."
+    },
+    "target_agent": {
+      "$ref": "#/$defs/AgentId",
+      "description": "Identity of the receiving agent or target handler."
+    },
+    "task_id": {
+      "description": "Top-level workflow task identifier.",
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "parent_event_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional causal parent event identifier.",
+      "title": "Parent Event Id"
+    },
+    "action": {
+      "$ref": "#/$defs/ActionName",
+      "description": "Requested action the agent is attempting to perform."
+    },
+    "resource": {
+      "$ref": "#/$defs/ResourceName",
+      "description": "Target resource operated on by the requested action."
+    },
+    "claimed_authority": {
+      "$ref": "#/$defs/AgentId",
+      "description": "Untrusted claim of delegating authority."
+    },
+    "capability": {
+      "$ref": "#/$defs/CapabilityName",
+      "description": "Capability token presented by the source agent."
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance",
+      "description": "Lineage and delegation chain context."
+    },
+    "context": {
+      "$ref": "#/$defs/RequestContext",
+      "description": "Supplemental request context."
+    }
+  },
+  "required": [
+    "request_id",
+    "timestamp",
+    "source_agent",
+    "target_agent",
+    "task_id",
+    "action",
+    "resource",
+    "claimed_authority",
+    "capability",
+    "provenance"
+  ],
+  "title": "ActionRequest",
+  "type": "object"
+}

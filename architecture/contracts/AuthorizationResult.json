@@ -1,0 +1,161 @@
+{
+  "$defs": {
+    "AuthorizationChecks": {
+      "additionalProperties": false,
+      "description": "Structured outcome flags for individual security verification stages.\nPopulated by downstream security services; defaults to uncalculated (None).",
+      "properties": {
+        "identity": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Identity validation outcome.",
+          "title": "Identity"
+        },
+        "capability": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Capability verification outcome.",
+          "title": "Capability"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Provenance graph validation outcome.",
+          "title": "Provenance"
+        },
+        "cedar": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cedar policy engine outcome.",
+          "title": "Cedar"
+        },
+        "deterministic_rules": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Deterministic security rules outcome.",
+          "title": "Deterministic Rules"
+        }
+      },
+      "title": "AuthorizationChecks",
+      "type": "object"
+    },
+    "AuthorizationDecision": {
+      "enum": [
+        "ALLOW",
+        "DENY"
+      ],
+      "title": "AuthorizationDecision",
+      "type": "string"
+    },
+    "ReasonCode": {
+      "enum": [
+        "IDENTITY_FAILURE",
+        "CAPABILITY_MISMATCH",
+        "AUTHORITY_MISMATCH",
+        "PROVENANCE_ANOMALY",
+        "POLICY_DENIED",
+        "AGENT_QUARANTINED",
+        "PRIVILEGE_ESCALATION",
+        "SUSPICIOUS_BEHAVIOR"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    },
+    "SecurityState": {
+      "enum": [
+        "ACTIVE",
+        "SUSPICIOUS",
+        "QUARANTINED",
+        "TERMINATED"
+      ],
+      "title": "SecurityState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Output contract returned by Kavach Gateway downstream to callers.\nProvides deterministic verdict, reason codes, advisory score, and agent state.",
+  "properties": {
+    "request_id": {
+      "description": "Identifier of the evaluated request.",
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "decision": {
+      "$ref": "#/$defs/AuthorizationDecision",
+      "description": "Deterministic authorization outcome (ALLOW | DENY)."
+    },
+    "reason_codes": {
+      "description": "List of security reason codes explaining the verdict.",
+      "items": {
+        "$ref": "#/$defs/ReasonCode"
+      },
+      "title": "Reason Codes",
+      "type": "array"
+    },
+    "risk_score": {
+      "anyOf": [
+        {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Advisory risk score (0-100). Not the authorization authority.",
+      "title": "Risk Score"
+    },
+    "checks": {
+      "$ref": "#/$defs/AuthorizationChecks",
+      "description": "Structured verification check details."
+    },
+    "agent_state": {
+      "$ref": "#/$defs/SecurityState",
+      "description": "Current runtime security status of the calling agent."
+    }
+  },
+  "required": [
+    "request_id",
+    "decision",
+    "agent_state"
+  ],
+  "title": "AuthorizationResult",
+  "type": "object"
+}

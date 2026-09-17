@@ -1,0 +1,163 @@
+{
+  "$defs": {
+    "ActionName": {
+      "enum": [
+        "research.search",
+        "research.read",
+        "coding.read",
+        "coding.write",
+        "coding.test",
+        "deployment.preview",
+        "deployment.deploy",
+        "verification.test",
+        "orchestrator.delegate",
+        "orchestrator.coordinate"
+      ],
+      "title": "ActionName",
+      "type": "string"
+    },
+    "AgentId": {
+      "enum": [
+        "orchestrator-01",
+        "research-01",
+        "coding-01",
+        "deployment-01",
+        "verification-01"
+      ],
+      "title": "AgentId",
+      "type": "string"
+    },
+    "AuthorizationDecision": {
+      "enum": [
+        "ALLOW",
+        "DENY"
+      ],
+      "title": "AuthorizationDecision",
+      "type": "string"
+    },
+    "EventType": {
+      "enum": [
+        "AUTHORIZATION_REQUEST",
+        "AUTHORIZATION_DECISION",
+        "SECURITY_VIOLATION",
+        "QUARANTINE"
+      ],
+      "title": "EventType",
+      "type": "string"
+    },
+    "ReasonCode": {
+      "enum": [
+        "IDENTITY_FAILURE",
+        "CAPABILITY_MISMATCH",
+        "AUTHORITY_MISMATCH",
+        "PROVENANCE_ANOMALY",
+        "POLICY_DENIED",
+        "AGENT_QUARANTINED",
+        "PRIVILEGE_ESCALATION",
+        "SUSPICIOUS_BEHAVIOR"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    },
+    "ResourceName": {
+      "enum": [
+        "research-data",
+        "workspace",
+        "test-environment",
+        "staging-environment",
+        "production-environment"
+      ],
+      "title": "ResourceName",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Structured security telemetry event contract.\nCaptures security-relevant request lifecycle and enforcement events.\nData contract only; does not implement transport or publishing.",
+  "properties": {
+    "event_id": {
+      "description": "Unique telemetry event identifier.",
+      "minLength": 1,
+      "title": "Event Id",
+      "type": "string"
+    },
+    "timestamp": {
+      "description": "UTC ISO 8601 event generation timestamp.",
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "event_type": {
+      "$ref": "#/$defs/EventType",
+      "description": "Constrained security event category."
+    },
+    "source_agent": {
+      "$ref": "#/$defs/AgentId",
+      "description": "Originating source agent identity."
+    },
+    "target_agent": {
+      "$ref": "#/$defs/AgentId",
+      "description": "Target recipient agent or tool handler identity."
+    },
+    "request_id": {
+      "description": "Associated ActionRequest identifier.",
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "task_id": {
+      "description": "Associated workflow task identifier.",
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "action": {
+      "$ref": "#/$defs/ActionName",
+      "description": "Requested action."
+    },
+    "resource": {
+      "$ref": "#/$defs/ResourceName",
+      "description": "Target resource."
+    },
+    "policy_decision": {
+      "$ref": "#/$defs/AuthorizationDecision",
+      "description": "Deterministic authorization verdict (ALLOW | DENY)."
+    },
+    "reason_codes": {
+      "description": "List of reason codes associated with this event.",
+      "items": {
+        "$ref": "#/$defs/ReasonCode"
+      },
+      "title": "Reason Codes",
+      "type": "array"
+    },
+    "risk_score": {
+      "anyOf": [
+        {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Advisory risk score (0-100).",
+      "title": "Risk Score"
+    }
+  },
+  "required": [
+    "event_id",
+    "timestamp",
+    "event_type",
+    "source_agent",
+    "target_agent",
+    "request_id",
+    "task_id",
+    "action",
+    "resource",
+    "policy_decision"
+  ],
+  "title": "SecurityEvent",
+  "type": "object"
+}
