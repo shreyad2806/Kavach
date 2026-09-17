@@ -2,10 +2,17 @@
 Semgrep scanner wrapper — pattern-based static analysis.
 Uses language-specific rulesets based on detected file types.
 Detects: supply-chain patterns, insecure deserialization, SSRF, injection, etc.
+
+Rule resolution order:
+  1. SEMGREP_RULES_DIR env var — local files bundled into the Docker image at build time.
+     This is the production path: no internet access needed at runtime.
+  2. Registry configs (p/python etc.) — used in local dev when SEMGREP_RULES_DIR is not set.
 """
 
 import json
+import os
 import subprocess
+from pathlib import Path
 
 from scanner.gateway.extractor import detect_languages
 from scanner.logger import get_logger
@@ -20,8 +27,8 @@ _SEVERITY_MAP = {
     "INFO": FindingSeverity.INFO,
 }
 
-# Semgrep registry configs per language
-_LANGUAGE_CONFIGS = {
+# Registry config names per language (used when no local rules dir is set)
+_LANGUAGE_REGISTRY_CONFIGS = {
     "python": ["p/python", "p/secrets", "p/supply-chain"],
     "javascript": ["p/javascript", "p/secrets"],
     "typescript": ["p/typescript", "p/secrets"],
@@ -31,31 +38,67 @@ _LANGUAGE_CONFIGS = {
     "shell": ["p/bash"],
 }
 
+# Mapping from registry config name to local filename (set by Dockerfile)
+_REGISTRY_TO_LOCAL = {
+    "p/python": "python.yaml",
+    "p/secrets": "secrets.yaml",
+    "p/supply-chain": "supply-chain.yaml",
+    "p/javascript": "javascript.yaml",
+    "p/typescript": "typescript.yaml",
+    "p/golang": "golang.yaml",
+    "p/java": "java.yaml",
+    "p/ruby": "ruby.yaml",
+    "p/bash": "bash.yaml",
+}
+
+
+def _resolve_configs(registry_configs: list[str]) -> list[str]:
+    """
+    Resolve registry config names to local file paths if SEMGREP_RULES_DIR is set
+    and the file exists. Falls back to the registry name for any missing file.
+    """
+    rules_dir = os.environ.get("SEMGREP_RULES_DIR", "")
+    if not rules_dir:
+        return registry_configs
+
+    resolved = []
+    for config in registry_configs:
+        local_name = _REGISTRY_TO_LOCAL.get(config)
+        if local_name:
+            local_path = Path(rules_dir) / local_name
+            if local_path.exists():
+                resolved.append(str(local_path))
+                continue
+        # File not found locally — fall back to registry (requires internet)
+        log.warning("semgrep local rule file missing, falling back to registry", extra={"config": config})
+        resolved.append(config)
+    return resolved
+
 
 class SemgrepScanner(BaseScanner):
 
     def scan(self, artifact_id: str, artifact_path: str) -> list[ScanFinding]:
         languages = detect_languages(artifact_path)
 
-        # Build config list based on detected languages
-        configs: list[str] = []
+        registry_configs: list[str] = []
         for lang in languages:
-            configs.extend(_LANGUAGE_CONFIGS.get(lang, []))
+            registry_configs.extend(_LANGUAGE_REGISTRY_CONFIGS.get(lang, []))
 
         # Deduplicate while preserving order
         seen: set[str] = set()
-        unique_configs = [c for c in configs if not (c in seen or seen.add(c))]
+        registry_configs = [c for c in registry_configs if not (c in seen or seen.add(c))]
 
-        # Fall back to auto if no language matched
-        if not unique_configs:
-            unique_configs = ["auto"]
+        if not registry_configs:
+            registry_configs = ["auto"]
+
+        configs = _resolve_configs(registry_configs)
 
         cmd = ["semgrep"]
-        for config in unique_configs:
+        for config in configs:
             cmd += ["--config", config]
         cmd += [artifact_path, "--json", "--quiet"]
 
-        log.info("semgrep scan started", extra={"artifact_id": artifact_id, "languages": list(languages), "configs": unique_configs})
+        log.info("semgrep scan started", extra={"artifact_id": artifact_id, "languages": list(languages), "configs": configs})
         try:
             result = subprocess.run(
                 cmd,

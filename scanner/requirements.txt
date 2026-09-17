@@ -7,9 +7,8 @@ bandit>=1.7.9
 semgrep>=1.72.0
 pip-audit>=2.7.3
 
-# Strands Agents SDK (scanner agent)
+# Strands Agents SDK (scanner agent — core only, tools are custom)
 strands-agents>=0.1.0
-strands-agents-tools>=0.1.0
 
 # Dev / test
 pytest>=8.0.0

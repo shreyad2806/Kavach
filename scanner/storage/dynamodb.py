@@ -120,3 +120,10 @@ def get_verdict(artifact_id: str) -> ScanVerdict | None:
         return None
     item.pop("agent_report", None)
     return ScanVerdict.model_validate(item)
+
+
+def get_agent_report(artifact_id: str) -> str | None:
+    """Return the agent_report string stored alongside the verdict, or None."""
+    resp = _verdicts_table().get_item(Key={"artifact_id": artifact_id})
+    item = resp.get("Item")
+    return item.get("agent_report") if item else None

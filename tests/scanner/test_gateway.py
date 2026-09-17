@@ -257,3 +257,53 @@ def test_handler_second_scan_populates_inter_run_fields(aws_setup):
 
     assert record2.scan_count == 2
     assert record2.previous_sha256 == sha1
+
+
+# ==============================================================================
+# SSRF PROTECTION TESTS
+# ==============================================================================
+
+from scanner.gateway.downloader import SSRFBlockedError, _check_ssrf
+
+
+def test_ssrf_blocks_localhost():
+    with pytest.raises(SSRFBlockedError):
+        _check_ssrf("http://localhost/evil")
+
+
+def test_ssrf_blocks_loopback_ip():
+    with pytest.raises(SSRFBlockedError):
+        _check_ssrf("http://127.0.0.1/secret")
+
+
+def test_ssrf_blocks_aws_metadata():
+    with pytest.raises(SSRFBlockedError):
+        _check_ssrf("http://169.254.169.254/latest/meta-data/")
+
+
+def test_ssrf_blocks_private_10_range():
+    with pytest.raises(SSRFBlockedError):
+        _check_ssrf("http://10.0.0.1/internal")
+
+
+def test_ssrf_blocks_private_172_range():
+    with pytest.raises(SSRFBlockedError):
+        _check_ssrf("http://172.16.0.1/internal")
+
+
+def test_ssrf_blocks_private_192_range():
+    with pytest.raises(SSRFBlockedError):
+        _check_ssrf("http://192.168.1.1/internal")
+
+
+def test_ssrf_handler_returns_400_on_blocked_url(aws_setup):
+    with patch("scanner.gateway.handler.fetch", side_effect=SSRFBlockedError("SSRF blocked")):
+        resp = handler(_event(VALID_BODY), None)
+    assert resp["statusCode"] == 400
+    assert "SSRF" in json.loads(resp["body"])["error"]
+
+
+def test_ssrf_no_hostname_raises_download_error():
+    from scanner.gateway.downloader import DownloadError
+    with pytest.raises(DownloadError):
+        _check_ssrf("http:///no-host")

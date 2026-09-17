@@ -273,3 +273,39 @@ def test_all_scanners_set_artifact_id(scanner_cls, output, returncode):
     assert len(findings) >= 1
     for f in findings:
         assert f.artifact_id == "art-xyz"
+
+
+# ==============================================================================
+# SEMGREP LOCAL RULE RESOLUTION
+# ==============================================================================
+
+def test_semgrep_uses_registry_when_no_rules_dir():
+    from scanner.scanners.semgrep import _resolve_configs
+    import os
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("SEMGREP_RULES_DIR", None)
+        result = _resolve_configs(["p/python", "p/secrets"])
+    assert result == ["p/python", "p/secrets"]
+
+
+def test_semgrep_uses_local_files_when_rules_dir_set(tmp_path):
+    from scanner.scanners.semgrep import _resolve_configs
+    import os
+    # Create fake rule files
+    (tmp_path / "python.yaml").write_text("rules: []")
+    (tmp_path / "secrets.yaml").write_text("rules: []")
+    with patch.dict(os.environ, {"SEMGREP_RULES_DIR": str(tmp_path)}):
+        result = _resolve_configs(["p/python", "p/secrets"])
+    assert all(str(tmp_path) in r for r in result)
+    assert all(r.endswith(".yaml") for r in result)
+
+
+def test_semgrep_falls_back_to_registry_for_missing_local_file(tmp_path):
+    from scanner.scanners.semgrep import _resolve_configs
+    import os
+    # Only python.yaml exists, secrets.yaml does not
+    (tmp_path / "python.yaml").write_text("rules: []")
+    with patch.dict(os.environ, {"SEMGREP_RULES_DIR": str(tmp_path)}):
+        result = _resolve_configs(["p/python", "p/secrets"])
+    assert str(tmp_path) in result[0]   # python resolved locally
+    assert result[1] == "p/secrets"     # secrets fell back to registry

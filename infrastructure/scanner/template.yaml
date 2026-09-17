@@ -32,6 +32,18 @@ Globals:
         FARGATE_TASK_DEF_ARN: !Ref SandboxTaskDefinition
         FARGATE_SUBNET_ID: !Ref PrivateSubnetId
         FARGATE_SECURITY_GROUP_ID: !Ref SandboxSecurityGroupId
+  Api:
+    Auth:
+      ApiKeyRequired: true
+      UsagePlan:
+        CreateUsagePlan: PER_API
+        Description: Kavach scanner API usage plan
+        Quota:
+          Limit: 10000
+          Period: DAY
+        Throttle:
+          BurstLimit: 50
+          RateLimit: 20
 
 Resources:
 
@@ -208,6 +220,30 @@ Resources:
       RetentionInDays: 7
 
   # ------------------------------------------------------------------ #
+  # Lambda — Artifact Status (GET /artifacts/{artifact_id})            #
+  # ------------------------------------------------------------------ #
+  StatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Ref LambdaImageUri
+      ImageConfig:
+        Command: ["scanner.gateway.status.handler"]
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ArtifactsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref FindingsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref VerdictsTable
+      Events:
+        StatusApi:
+          Type: Api
+          Properties:
+            Path: /artifacts/{artifact_id}
+            Method: get
+
+  # ------------------------------------------------------------------ #
   # Lambda — Artifact Gateway (POST /artifacts/scan)                   #
   # Uses container image so all scanner tools are available             #
   # ------------------------------------------------------------------ #
@@ -283,8 +319,11 @@ Resources:
 
 Outputs:
   ScanApiUrl:
-    Description: Artifact scan endpoint
+    Description: Artifact scan endpoint (requires x-api-key header)
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/artifacts/scan"
+  StatusApiUrl:
+    Description: Artifact status polling endpoint (requires x-api-key header)
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/artifacts/{artifact_id}"
   ArtifactBucketName:
     Value: !Ref ArtifactBucket
   StateMachineArn:

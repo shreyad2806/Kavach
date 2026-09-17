@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 import boto3
 from pydantic import ValidationError
 
-from scanner.gateway.downloader import ArtifactTooLargeError, DownloadError, fetch
+from scanner.gateway.downloader import ArtifactTooLargeError, DownloadError, SSRFBlockedError, fetch
 from scanner.logger import get_logger
 
 log = get_logger(__name__)
@@ -97,6 +97,10 @@ def handler(event: dict, context) -> dict:
     try:
         log.info("downloading artifact", extra={"artifact_id": artifact_id, "source_url": request.source_url})
         data = fetch(request.source_url)
+    except SSRFBlockedError as e:
+        log.warning("ssrf attempt blocked", extra={"artifact_id": artifact_id, "source_url": request.source_url, "error": str(e)})
+        update_artifact_status(artifact_id, ArtifactStatus.FAILED)
+        return _response(400, {"error": str(e)})
     except ArtifactTooLargeError as e:
         log.warning("artifact too large", extra={"artifact_id": artifact_id, "error": str(e)})
         update_artifact_status(artifact_id, ArtifactStatus.FAILED)
