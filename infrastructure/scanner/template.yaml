@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: AgentShield Scanner Pipeline — API Gateway, Lambda, Step Functions, DynamoDB, S3
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 180
+    MemorySize: 512
+    Environment:
+      Variables:
+        SCANNER_BUCKET: !Ref ArtifactBucket
+        ARTIFACTS_TABLE: !Ref ArtifactsTable
+        FINDINGS_TABLE: !Ref FindingsTable
+        VERDICTS_TABLE: !Ref VerdictsTable
+        PIPELINE_STATE_MACHINE_ARN: !Ref ScannerStateMachine
+
+Resources:
+
+  # ------------------------------------------------------------------ #
+  # S3 — single bucket, quarantine/ and approved/ are key prefixes      #
+  # ------------------------------------------------------------------ #
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # ------------------------------------------------------------------ #
+  # DynamoDB tables                                                      #
+  # ------------------------------------------------------------------ #
+  ArtifactsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: artifact_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: artifact_id
+          KeyType: HASH
+
+  FindingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: artifact_id
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: artifact_id
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+
+  VerdictsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: artifact_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: artifact_id
+          KeyType: HASH
+
+  # ------------------------------------------------------------------ #
+  # Lambda — Artifact Gateway (POST /artifacts/scan)                    #
+  # ------------------------------------------------------------------ #
+  GatewayFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../
+      Handler: scanner.gateway.handler.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ArtifactsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactBucket
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !GetAtt ScannerStateMachine.Name
+      Events:
+        ScanApi:
+          Type: Api
+          Properties:
+            Path: /artifacts/scan
+            Method: post
+
+  # ------------------------------------------------------------------ #
+  # Lambda — Pipeline stages (static_scan / sandbox / verdict)          #
+  # ------------------------------------------------------------------ #
+  PipelineFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../
+      Handler: scanner.pipeline.handler.handler
+      Timeout: 300
+      MemorySize: 1024
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ArtifactsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FindingsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VerdictsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactBucket
+
+  # ------------------------------------------------------------------ #
+  # Step Functions state machine                                         #
+  # ------------------------------------------------------------------ #
+  ScannerStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: stepfunctions.json
+      DefinitionSubstitutions:
+        PipelineLambdaArn: !GetAtt PipelineFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref PipelineFunction
+
+Outputs:
+  ScanApiUrl:
+    Description: Artifact scan endpoint
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/artifacts/scan"
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
+  StateMachineArn:
+    Value: !Ref ScannerStateMachine

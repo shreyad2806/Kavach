@@ -1,0 +1,126 @@
+{
+  "Comment": "AgentShield scanner pipeline — static scan (parallel) -> sandbox -> verdict",
+  "StartAt": "StaticScanParallel",
+  "States": {
+    "StaticScanParallel": {
+      "Type": "Parallel",
+      "Comment": "Run all 4 static scanners concurrently against the quarantined artifact.",
+      "Branches": [
+        {
+          "StartAt": "BanditScan",
+          "States": {
+            "BanditScan": {
+              "Type": "Task",
+              "Resource": "${PipelineLambdaArn}",
+              "Parameters": {
+                "stage": "static_scan",
+                "scanner": "bandit",
+                "artifact_id.$": "$.artifact_id"
+              },
+              "End": true,
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 1}]
+            }
+          }
+        },
+        {
+          "StartAt": "SemgrepScan",
+          "States": {
+            "SemgrepScan": {
+              "Type": "Task",
+              "Resource": "${PipelineLambdaArn}",
+              "Parameters": {
+                "stage": "static_scan",
+                "scanner": "semgrep",
+                "artifact_id.$": "$.artifact_id"
+              },
+              "End": true,
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 1}]
+            }
+          }
+        },
+        {
+          "StartAt": "PipAuditScan",
+          "States": {
+            "PipAuditScan": {
+              "Type": "Task",
+              "Resource": "${PipelineLambdaArn}",
+              "Parameters": {
+                "stage": "static_scan",
+                "scanner": "pip_audit",
+                "artifact_id.$": "$.artifact_id"
+              },
+              "End": true,
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 1}]
+            }
+          }
+        },
+        {
+          "StartAt": "GitleaksScan",
+          "States": {
+            "GitleaksScan": {
+              "Type": "Task",
+              "Resource": "${PipelineLambdaArn}",
+              "Parameters": {
+                "stage": "static_scan",
+                "scanner": "gitleaks",
+                "artifact_id.$": "$.artifact_id"
+              },
+              "End": true,
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 1}]
+            }
+          }
+        }
+      ],
+      "Next": "Sandbox",
+      "ResultPath": "$.scan_results"
+    },
+    "Sandbox": {
+      "Type": "Task",
+      "Resource": "${PipelineLambdaArn}",
+      "Parameters": {
+        "stage": "sandbox",
+        "artifact_id.$": "$.artifact_id"
+      },
+      "Next": "Verdict",
+      "ResultPath": "$.sandbox_result",
+      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 1}]
+    },
+    "Verdict": {
+      "Type": "Task",
+      "Resource": "${PipelineLambdaArn}",
+      "Parameters": {
+        "stage": "verdict",
+        "artifact_id.$": "$.artifact_id"
+      },
+      "Next": "CheckDecision",
+      "ResultPath": "$.verdict_result"
+    },
+    "CheckDecision": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.verdict_result.decision",
+          "StringEquals": "APPROVED",
+          "Next": "Approved"
+        },
+        {
+          "Variable": "$.verdict_result.decision",
+          "StringEquals": "BLOCKED",
+          "Next": "Blocked"
+        }
+      ],
+      "Default": "ReviewRequired"
+    },
+    "Approved": {
+      "Type": "Succeed"
+    },
+    "Blocked": {
+      "Type": "Fail",
+      "Error": "ArtifactBlocked",
+      "Cause": "Artifact failed security scanning and has been blocked."
+    },
+    "ReviewRequired": {
+      "Type": "Succeed"
+    }
+  }
+}
