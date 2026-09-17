@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kavach"
+version = "0.1.0"
+description = "Zero-Trust Runtime Security for Autonomous Systems"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Kavach Team" }
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
