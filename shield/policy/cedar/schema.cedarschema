@@ -1,0 +1,78 @@
+{
+  "entityTypes": {
+    "Agent": {
+      "shape": null
+    },
+    "Resource": {
+      "shape": null
+    }
+  },
+  "actions": {
+    "research.search": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "research.read": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "coding.read": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "coding.write": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "coding.test": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "deployment.preview": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "deployment.deploy": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "deployment.production": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "verification.test": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "orchestrator.delegate": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
+    "orchestrator.coordinate": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    }
+  }
+}
