@@ -1,3 +1,6 @@
-# Policy module - Cedar policy engine (stub for Phase 6)
+from shield.policy.engine import PolicyEngine
 
-__all__ = []
+
+
+__all__ = ["PolicyEngine"]
+
