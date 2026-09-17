@@ -2,8 +2,8 @@
 Quarantine — transitions an agent to QUARANTINED security state.
 """
 
-from kavach.identity.models import AgentId, SecurityState
-from kavach.identity.service import IdentityService
+from shield.identity.models import AgentId, SecurityState
+from shield.identity.service import IdentityService
 
 
 class QuarantineService:

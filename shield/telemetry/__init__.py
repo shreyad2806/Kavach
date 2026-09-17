@@ -1,5 +1,3 @@
-from kavach.telemetry.audit import AuditLog
-from kavach.telemetry.events import EventType, SecurityEvent
-from kavach.telemetry.publisher import TelemetryPublisher
+from shield.telemetry.events import EventType, SecurityEvent
 
-__all__ = ["AuditLog", "EventType", "SecurityEvent", "TelemetryPublisher"]
+__all__ = ["EventType", "SecurityEvent"]

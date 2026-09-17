@@ -1,6 +1,6 @@
 import pytest
 
-from kavach.capabilities import CapabilityService, CapabilityName
+from shield.capabilities import CapabilityService, CapabilityName
 
 
 class TestCapabilityService:

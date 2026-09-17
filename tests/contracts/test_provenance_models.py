@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from kavach.identity.models import AgentId
-from kavach.provenance.models import Provenance
+from shield.identity.models import AgentId
+from shield.provenance.models import Provenance
 
 
 def test_provenance_single_hop_valid():

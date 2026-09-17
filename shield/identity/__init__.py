@@ -1,5 +1,5 @@
-from kavach.identity.models import AgentId, AgentIdentity, AgentRole, SecurityState
-from kavach.identity.service import IdentityService
+from shield.identity.models import AgentId, AgentIdentity, AgentRole, SecurityState
+from shield.identity.service import IdentityService
 
 __all__ = [
     "AgentId",

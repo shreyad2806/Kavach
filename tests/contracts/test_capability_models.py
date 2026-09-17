@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from kavach.capabilities.models import Capability, CapabilityName
+from shield.capabilities.models import Capability, CapabilityName
 
 
 def test_capability_name_vocabulary():

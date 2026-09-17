@@ -3,8 +3,8 @@ Capability Registry — maps action names to the required capability name.
 Used by the policy engine to verify action-capability alignment.
 """
 
-from kavach.capabilities.models import CapabilityName
-from kavach.gateway.models import ActionName
+from shield.capabilities.models import CapabilityName
+from shield.gateway.models import ActionName
 
 # Each action requires exactly one capability
 ACTION_CAPABILITY_MAP: dict[ActionName, CapabilityName] = {

@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from kavach.capabilities.models import CapabilityName
-from kavach.gateway.models import (
+from shield.capabilities.models import CapabilityName
+from shield.gateway.models import (
     ActionName,
     ActionRequest,
     AuthorizationChecks,
@@ -13,8 +13,8 @@ from kavach.gateway.models import (
     RequestContext,
     ResourceName,
 )
-from kavach.identity.models import AgentId, SecurityState
-from kavach.provenance.models import Provenance
+from shield.identity.models import AgentId, SecurityState
+from shield.provenance.models import Provenance
 
 
 def test_resource_name_vocabulary():

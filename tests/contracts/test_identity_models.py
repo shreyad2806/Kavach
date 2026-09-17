@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from kavach.identity.models import AgentId, AgentIdentity, AgentRole, SecurityState
+from shield.identity.models import AgentId, AgentIdentity, AgentRole, SecurityState
 
 
 def test_agent_id_enum_values():

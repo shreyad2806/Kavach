@@ -2,8 +2,8 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field
 
-from kavach.gateway.models import ActionName, AuthorizationDecision, ReasonCode, ResourceName
-from kavach.identity.models import AgentId
+from shield.gateway.models import ActionName, AuthorizationDecision, ReasonCode, ResourceName
+from shield.identity.models import AgentId
 
 
 class EventType(str, Enum):

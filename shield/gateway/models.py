@@ -3,9 +3,9 @@ from enum import Enum
 from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from kavach.capabilities.models import CapabilityName
-from kavach.identity.models import AgentId, SecurityState
-from kavach.provenance.models import Provenance
+from shield.capabilities.models import CapabilityName
+from shield.identity.models import AgentId, SecurityState
+from shield.provenance.models import Provenance
 
 
 class ResourceName(str, Enum):

@@ -1,12 +1,12 @@
 """
-Kavach In-Memory Identity Registry and Identity Service.
-Answers strictly: "Is this a known Kavach agent, and what is its current security state?"
+Shield In-Memory Identity Registry and Identity Service.
+Answers strictly: "Is this a known Shield agent, and what is its current security state?"
 Contains NO authorization logic, capability checking, or policy decisions.
 """
 
 from copy import deepcopy
 
-from kavach.identity.models import AgentId, AgentIdentity, AgentRole, SecurityState
+from shield.identity.models import AgentId, AgentIdentity, AgentRole, SecurityState
 
 
 # Canonical initial specification of all five autonomous agents

@@ -1,5 +1,3 @@
-from kavach.provenance.graph import ProvenanceGraph
-from kavach.provenance.models import Provenance
-from kavach.provenance.validator import ProvenanceValidator
+from shield.provenance.models import Provenance
 
-__all__ = ["Provenance", "ProvenanceGraph", "ProvenanceValidator"]
+__all__ = ["Provenance"]

@@ -1,5 +1,4 @@
-from kavach.gateway.interceptor import GatewayInterceptor
-from kavach.gateway.models import (
+from shield.gateway.models import (
     ActionName,
     ActionRequest,
     AuthorizationChecks,
@@ -9,8 +8,6 @@ from kavach.gateway.models import (
     RequestContext,
     ResourceName,
 )
-from kavach.gateway.router import GatewayRouter
-from kavach.gateway.validator import GatewayValidator
 
 __all__ = [
     "ActionName",
@@ -18,9 +15,6 @@ __all__ = [
     "AuthorizationChecks",
     "AuthorizationDecision",
     "AuthorizationResult",
-    "GatewayInterceptor",
-    "GatewayRouter",
-    "GatewayValidator",
     "ReasonCode",
     "RequestContext",
     "ResourceName",

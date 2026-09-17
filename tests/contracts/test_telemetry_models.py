@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from kavach.gateway.models import ActionName, AuthorizationDecision, ReasonCode, ResourceName
-from kavach.identity.models import AgentId
-from kavach.telemetry.events import EventType, SecurityEvent
+from shield.gateway.models import ActionName, AuthorizationDecision, ReasonCode, ResourceName
+from shield.identity.models import AgentId
+from shield.telemetry.events import EventType, SecurityEvent
 
 
 def test_event_type_vocabulary():
