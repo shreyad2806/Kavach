@@ -2,8 +2,8 @@
 Revocation — runtime capability revocation for compromised agents.
 """
 
-from kavach.capabilities.service import CapabilityService
-from kavach.identity.models import AgentId
+from shield.capabilities.service import CapabilityService
+from shield.identity.models import AgentId
 
 
 class RevocationService:

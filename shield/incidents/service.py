@@ -5,9 +5,9 @@ Incident Service — creates and manages security incidents.
 import uuid
 from datetime import datetime, timezone
 
-from kavach.gateway.models import AuthorizationResult, ReasonCode
-from kavach.identity.models import AgentId
-from kavach.incidents.models import Incident, IncidentSeverity, IncidentStatus
+from shield.gateway.models import AuthorizationResult, ReasonCode
+from shield.identity.models import AgentId
+from shield.incidents.models import Incident, IncidentSeverity, IncidentStatus
 
 _SEVERITY_MAP: dict[int, IncidentSeverity] = {
     0: IncidentSeverity.LOW,

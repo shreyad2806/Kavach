@@ -1,6 +1,6 @@
 from typing import List
 
-from kavach.capabilities.models import Capability, CapabilityName
+from shield.capabilities.models import Capability, CapabilityName
 
 
 class CapabilityService:

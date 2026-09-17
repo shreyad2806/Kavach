@@ -1,3 +1,3 @@
-from kavach.policy.engine import PolicyEngine
+# Policy module - Cedar policy engine (stub for Phase 6)
 
-__all__ = ["PolicyEngine"]
+__all__ = []

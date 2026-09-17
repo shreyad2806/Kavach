@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from kavach.identity.models import AgentId
+from shield.identity.models import AgentId
 
 
 class Provenance(BaseModel):

@@ -1,5 +1,4 @@
-from kavach.detection.anomaly import AnomalyDetector
-from kavach.detection.rules import detect
-from kavach.detection.signals import SignalType, ThreatSignal
+from shield.detection.anomaly import AnomalyDetector
+from shield.detection.rules import detect
 
-__all__ = ["AnomalyDetector", "detect", "SignalType", "ThreatSignal"]
+__all__ = ["AnomalyDetector", "detect"]

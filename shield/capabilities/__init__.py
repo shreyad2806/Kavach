@@ -1,4 +1,4 @@
-from kavach.capabilities.models import Capability, CapabilityName
-from kavach.capabilities.service import CapabilityService
+from shield.capabilities.models import Capability, CapabilityName
+from shield.capabilities.service import CapabilityService
 
 __all__ = ["Capability", "CapabilityName", "CapabilityService"]

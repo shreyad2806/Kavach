@@ -4,9 +4,8 @@ Anomaly Detector — tracks per-agent denial counts and flags repeated-denial si
 
 from collections import defaultdict
 
-from kavach.detection.signals import SignalType, ThreatSignal, SIGNAL_MAP
-from kavach.gateway.models import AuthorizationDecision, AuthorizationResult
-from kavach.identity.models import AgentId
+from shield.gateway.models import AuthorizationDecision, AuthorizationResult
+from shield.identity.models import AgentId
 
 _DEFAULT_THRESHOLD = 3
 
@@ -16,14 +15,14 @@ class AnomalyDetector:
         self._threshold = denial_threshold
         self._denial_counts: dict[AgentId, int] = defaultdict(int)
 
-    def observe(self, agent_id: AgentId, result: AuthorizationResult) -> list[ThreatSignal]:
-        """Record result and return any newly triggered anomaly signals."""
+    def observe(self, agent_id: AgentId, result: AuthorizationResult) -> list[str]:
+        """Record result and return any newly triggered anomaly signal names."""
         if result.decision == AuthorizationDecision.DENY:
             self._denial_counts[agent_id] += 1
 
-        signals: list[ThreatSignal] = []
+        signals: list[str] = []
         if self._denial_counts[agent_id] >= self._threshold:
-            signals.append(SIGNAL_MAP[SignalType.REPEATED_DENIAL])
+            signals.append("REPEATED_DENIAL")
 
         return signals
 

@@ -6,8 +6,8 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field
 
-from kavach.gateway.models import ReasonCode
-from kavach.identity.models import AgentId
+from shield.gateway.models import ReasonCode
+from shield.identity.models import AgentId
 
 
 class IncidentSeverity(str, Enum):

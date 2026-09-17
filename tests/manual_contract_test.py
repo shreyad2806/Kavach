@@ -1,4 +1,4 @@
-from kavach.gateway.models import AuthorizationResult
+from shield.gateway.models import AuthorizationResult
 
 
 result = AuthorizationResult(

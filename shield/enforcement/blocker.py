@@ -3,15 +3,15 @@ Blocker — synchronous enforcement gate.
 Checks agent state before allowing a request to proceed.
 """
 
-from kavach.gateway.models import (
+from shield.gateway.models import (
     ActionRequest,
     AuthorizationChecks,
     AuthorizationDecision,
     AuthorizationResult,
     ReasonCode,
 )
-from kavach.identity.models import SecurityState
-from kavach.identity.service import IdentityService
+from shield.identity.models import SecurityState
+from shield.identity.service import IdentityService
 
 _BLOCKED_STATES = {SecurityState.QUARANTINED, SecurityState.TERMINATED}
 
