@@ -24,8 +24,8 @@ from scanner.agent.tools import get_artifact_info, get_scan_findings, get_scan_v
 
 def _build_agent() -> Agent:
     model = BedrockModel(
-        model_id=os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-5-haiku-20241022-v1:0"),
-        region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
+        model_id=os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"),
+        region_name=os.environ.get("AWS_DEFAULT_REGION", "ap-south-1"),
     )
     return Agent(
         model=model,
