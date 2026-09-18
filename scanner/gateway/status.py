@@ -13,6 +13,7 @@ import json
 
 from scanner.logger import get_logger
 from scanner.storage.dynamodb import get_artifact, get_findings, get_verdict, get_agent_report
+from scanner.storage.s3 import generate_approved_presigned_url
 
 log = get_logger(__name__)
 
@@ -71,6 +72,13 @@ def handler(event: dict, context) -> dict:
             "blocked_reasons": verdict.blocked_reasons,
             "scanner_verdicts": verdict.scanner_verdicts,
         }
+        if verdict.decision.value == "APPROVED":
+            try:
+                payload["download_url"] = generate_approved_presigned_url(
+                    record.artifact_id, record.source_url
+                )
+            except Exception:
+                pass  # presigned URL is best-effort — don't fail the status response
 
     if agent_report:
         payload["agent_report"] = agent_report

@@ -38,8 +38,10 @@ _SCANNERS = {
     "bandit": BanditScanner(),
     "semgrep": SemgrepScanner(),
     "pip_audit": PipAuditScanner(),
-    "gitleaks": GitleaksScanner(),
+    # GitleaksScanner is instantiated per-request (needs source_url to decide git vs archive mode)
 }
+
+_ALL_SCANNER_NAMES = {"bandit", "semgrep", "pip_audit", "gitleaks"}
 
 
 def _error(msg: str) -> dict:
@@ -85,7 +87,7 @@ def handler(event: dict, context) -> dict:
     # ------------------------------------------------------------------ #
     if stage == "static_scan":
         scanner_name = event.get("scanner")
-        if scanner_name not in _SCANNERS:
+        if scanner_name not in _ALL_SCANNER_NAMES:
             return _error(f"Unknown scanner: {scanner_name}")
 
         log.info("static scan started", extra={"artifact_id": artifact_id, "scanner": scanner_name})
@@ -94,7 +96,12 @@ def handler(event: dict, context) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
             data = download_from_quarantine(artifact_id, record.source_url)
             artifact_path = _write_artifact(tmpdir, data)
-            findings = _SCANNERS[scanner_name].scan(artifact_id, artifact_path)
+            scanner = (
+                GitleaksScanner(source_url=record.source_url)
+                if scanner_name == "gitleaks"
+                else _SCANNERS[scanner_name]
+            )
+            findings = scanner.scan(artifact_id, artifact_path)
 
         for finding in findings:
             put_finding(finding)

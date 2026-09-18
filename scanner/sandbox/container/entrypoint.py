@@ -309,7 +309,7 @@ def main():
 
 
 def _try_extract(local_file: Path, artifact_dir: Path) -> None:
-    """Try to extract the file as an archive in-place."""
+    """Try to extract the file as an archive in-place, with path traversal protection."""
     import tarfile
     import zipfile
     import io
@@ -318,14 +318,21 @@ def _try_extract(local_file: Path, artifact_dir: Path) -> None:
 
     try:
         with tarfile.open(fileobj=io.BytesIO(data)) as tf:
-            tf.extractall(path=str(artifact_dir))
+            safe_members = [
+                m for m in tf.getmembers()
+                if not m.name.startswith("/") and ".." not in m.name
+            ]
+            tf.extractall(path=str(artifact_dir), members=safe_members)
         return
     except Exception:
         pass
 
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            zf.extractall(path=str(artifact_dir))
+            for member in zf.namelist():
+                if member.startswith("/") or ".." in member:
+                    continue
+                zf.extract(member, path=str(artifact_dir))
         return
     except Exception:
         pass
