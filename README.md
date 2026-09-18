@@ -71,7 +71,7 @@ The scanner agent is the pre-execution security layer. It accepts any artifact U
 - **Bandit** — Python security issues: eval/exec abuse, weak crypto, subprocess misuse, hardcoded passwords
 - **Semgrep** — Language-aware pattern matching for Python, JavaScript, TypeScript, Go, Java, Ruby, Shell. Rules are bundled into the Docker image at build time — no internet needed at runtime
 - **pip-audit** — Python CVE scanning via PyPI Advisory Database. Falls back from requirements.txt → setup.py → AST import extraction
-- **Gitleaks** — Secret and credential detection. Clones full git history (depth 50) for GitHub, GitLab, and Bitbucket URLs
+- **Gitleaks** — Secret and credential detection. Clones full git history (depth 50) for GitHub, GitLab, and Bitbucket URLss
 
 ### Dynamic Sandbox
 
