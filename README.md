@@ -42,7 +42,7 @@ External Artifact (PyPI / GitHub / GitLab / Bitbucket / zip)
   Verdict Engine  (deterministic — no LLM)
         │
         ▼
-  Bedrock Agent  (Claude 3.5 Haiku — advisory explanation only)
+  Bedrock Agent  (Claude 3 Haiku — advisory explanation only)
         │
         ▼
   APPROVED → approved/ S3 prefix  (agents can access)
@@ -64,7 +64,7 @@ The scanner agent is the pre-execution security layer. It accepts any artifact U
 | Static scan (parallel) | Bandit, Semgrep, pip-audit, Gitleaks run concurrently |
 | Sandbox | Fargate container executes the artifact under strace, observes runtime behavior |
 | Verdict | Deterministic risk score (0–100), hard block rules, APPROVED/BLOCKED/REVIEW decision |
-| Agent report | Claude 3.5 Haiku explains the verdict in plain English for operators |
+| Agent report | Claude 3 Haiku explains the verdict in plain English for operators |
 
 ### Static Scanners
 
@@ -124,7 +124,7 @@ Hard block overrides (score-independent):
 | DynamoDB | Artifacts, Findings, Verdicts, SandboxResults tables |
 | ECS Fargate | Isolated sandbox container execution |
 | ECR | Lambda scanner image and Fargate sandbox image |
-| Bedrock | Claude 3.5 Haiku for plain-English scan reports |
+| Bedrock | Claude 3 Haiku for plain-English scan reports |
 | CloudWatch Logs | Structured JSON logs from Lambda and Fargate, filterable by `artifact_id` |
 | IAM | Least-privilege roles — sandbox task role can only read quarantine S3 and write sandbox results |
 | VPC | Private subnet + zero-outbound security group for sandbox isolation |
@@ -169,7 +169,7 @@ kavach/
 - Python 3.11+
 - Docker
 - AWS CLI + SAM CLI
-- AWS account with Bedrock model access enabled for Claude 3.5 Haiku
+- AWS account with Bedrock model access enabled for Claude 3 Haiku
 
 ### Local development
 
@@ -189,13 +189,13 @@ pytest tests/scanner/ -v
 
 **1. Enable Bedrock model access**
 
-AWS Console → Bedrock → Model access → Enable Claude 3.5 Haiku (one-time).
+AWS Console → Bedrock → Model access → Enable Claude 3 Haiku (one-time).
 
 **2. Create ECR repositories**
 
 ```bash
-aws ecr create-repository --repository-name kavach-scanner --region us-east-1
-aws ecr create-repository --repository-name kavach-sandbox --region us-east-1
+aws ecr create-repository --repository-name kavach-scanner --region ap-south-1
+aws ecr create-repository --repository-name kavach-sandbox --region ap-south-1
 ```
 
 **3. Build and push container images**
@@ -203,18 +203,18 @@ aws ecr create-repository --repository-name kavach-sandbox --region us-east-1
 ```bash
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
-aws ecr get-login-password --region us-east-1 | \
-  docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
+aws ecr get-login-password --region ap-south-1 | \
+  docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com
 
 # Lambda scanner image
 docker build -t kavach-scanner .
-docker tag kavach-scanner:latest $ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/kavach-scanner:latest
-docker push $ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/kavach-scanner:latest
+docker tag kavach-scanner:latest $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-scanner:latest
+docker push $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-scanner:latest
 
 # Fargate sandbox image
 docker build -t kavach-sandbox scanner/sandbox/container/
-docker tag kavach-sandbox:latest $ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/kavach-sandbox:latest
-docker push $ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/kavach-sandbox:latest
+docker tag kavach-sandbox:latest $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-sandbox:latest
+docker push $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-sandbox:latest
 ```
 
 **4. Create VPC networking for sandbox isolation**
@@ -222,7 +222,7 @@ docker push $ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/kavach-sandbox:latest
 ```bash
 VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --query 'Vpc.VpcId' --output text)
 SUBNET_ID=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.1.0/24 \
-  --availability-zone us-east-1a --query 'Subnet.SubnetId' --output text)
+  --availability-zone ap-south-1a --query 'Subnet.SubnetId' --output text)
 SG_ID=$(aws ec2 create-security-group --group-name kavach-sandbox-sg \
   --description "Kavach sandbox — no outbound" --vpc-id $VPC_ID \
   --query 'GroupId' --output text)
@@ -237,11 +237,11 @@ cd infrastructure/scanner
 sam build
 sam deploy \
   --stack-name kavach-scanner \
-  --region us-east-1 \
+  --region ap-south-1 \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
-    LambdaImageUri=$ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/kavach-scanner:latest \
-    SandboxImageUri=$ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/kavach-sandbox:latest \
+    LambdaImageUri=$ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-scanner:latest \
+    SandboxImageUri=$ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-sandbox:latest \
     PrivateSubnetId=$SUBNET_ID \
     SandboxSecurityGroupId=$SG_ID
 ```
