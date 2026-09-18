@@ -3,6 +3,7 @@ from typing import Any
 
 from agents.common.messages import AgentMessage
 from sandbox.runtime.message_bus import MessageBus
+from sandbox.runtime.workspace import SafeWorkspace
 
 
 class VerificationTools:
@@ -14,43 +15,31 @@ class VerificationTools:
         workspace: str = "sandbox/workspace/verification",
     ) -> None:
         self.message_bus = message_bus
-        self.workspace = Path(workspace)
-
-        self.workspace.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        self.workspace = SafeWorkspace("verification", workspace)
 
     def inspect_output(
         self,
         filename: str,
     ) -> dict[str, Any]:
         """Inspect a file from the controlled verification workspace."""
-
-        file_path = self.workspace / filename
-
-        if not file_path.exists():
+        try:
+            content = self.workspace.read_text(filename)
+            return {
+                "status": "FOUND",
+                "file": filename,
+                "size": len(content),
+                "content": content,
+            }
+        except FileNotFoundError:
             return {
                 "status": "NOT_FOUND",
                 "file": filename,
             }
-
-        if not file_path.is_file():
+        except ValueError:
             return {
                 "status": "INVALID",
                 "file": filename,
             }
-
-        content = file_path.read_text(
-            encoding="utf-8"
-        )
-
-        return {
-            "status": "FOUND",
-            "file": filename,
-            "size": len(content),
-            "content": content,
-        }
 
     def run_tests(self) -> dict[str, Any]:
         """Simulate controlled verification tests."""

@@ -3,6 +3,7 @@ from typing import Any
 
 from agents.common.messages import AgentMessage
 from sandbox.runtime.message_bus import MessageBus
+from sandbox.runtime.workspace import SafeWorkspace
 
 
 class CodingTools:
@@ -14,30 +15,11 @@ class CodingTools:
         workspace: str = "sandbox/workspace/coding",
     ) -> None:
         self.message_bus = message_bus
-        self.workspace = Path(workspace)
-
-        self.workspace.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        self.workspace = SafeWorkspace("coding", workspace)
 
     def read_file(self, filename: str) -> str:
         """Read a file from the Coding workspace."""
-        file_path = self.workspace / filename
-
-        if not file_path.exists():
-            raise FileNotFoundError(
-                f"File not found: {filename}"
-            )
-
-        if not file_path.is_file():
-            raise ValueError(
-                f"Not a file: {filename}"
-            )
-
-        return file_path.read_text(
-            encoding="utf-8"
-        )
+        return self.workspace.read_text(filename)
 
     def write_file(
         self,
@@ -45,19 +27,7 @@ class CodingTools:
         content: str,
     ) -> str:
         """Write a file into the Coding workspace."""
-        file_path = self.workspace / filename
-
-        file_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        file_path.write_text(
-            content,
-            encoding="utf-8",
-        )
-
-        return str(file_path)
+        return str(self.workspace.write_text(filename, content))
 
     def run_tests(self) -> dict[str, Any]:
         """
