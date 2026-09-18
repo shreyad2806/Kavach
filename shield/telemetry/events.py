@@ -90,7 +90,7 @@ class SecurityEvent(BaseModel):
 # Audit Log Sink & Helper Functions
 # ============================================================================
 
-DEFAULT_AUDIT_LOG_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "audit.log"
+DEFAULT_AUDIT_LOG_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "kavach" / "audit.log"
 
 
 def get_audit_log_path() -> Path:
