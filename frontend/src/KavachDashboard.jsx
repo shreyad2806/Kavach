@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
+import { api } from "./api.js";
 import {
   Menu, Plus, Search, Mic, Calendar, Lock, ArrowRight, ArrowUpRight,
   MoreVertical, Maximize2, SlidersHorizontal, X, Scale, ListChecks,
@@ -58,6 +59,70 @@ function Wave() {
   </svg>;
 }
 
+const DECISION_COLOR = { APPROVED: "#16865b", BLOCKED: "#ff5a3c", REVIEW_REQUIRED: "#d97706" };
+
+function ScanArtifactPanel({ form, setForm, result, setResult, loading, setLoading, error, setError, notify }) {
+  const poll = useCallback(async (artifact_id) => {
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        const data = await api.getArtifact(artifact_id);
+        if (["APPROVED","BLOCKED","REVIEW_REQUIRED","FAILED"].includes(data.status)) {
+          setResult(data); setLoading(false); return;
+        }
+      } catch {}
+    }
+    setError("Scan timed out. Check back later."); setLoading(false);
+  }, [setResult, setLoading, setError]);
+
+  const submit = async () => {
+    if (!form.source_url.trim()) { setError("Source URL is required."); return; }
+    setLoading(true); setResult(null); setError("");
+    try {
+      const { artifact_id } = await api.scanArtifact(form);
+      notify(`Scan queued: ${artifact_id}`);
+      poll(artifact_id);
+    } catch (e) {
+      setError(e.message || "Scan submission failed."); setLoading(false);
+    }
+  };
+
+  return <div className="space-y-3">
+    <p className="text-xs" style={{color:COLORS.inkDim}}>Submit an artifact URL to the scanner pipeline.</p>
+    <select value={form.artifact_type} onChange={e=>setForm(f=>({...f,artifact_type:e.target.value}))}
+      className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{background:COLORS.canvas}}>
+      <option value="python_package">Python Package</option>
+      <option value="github_repo">GitHub Repo</option>
+      <option value="generic_file">Generic File</option>
+    </select>
+    <input value={form.source_url} onChange={e=>setForm(f=>({...f,source_url:e.target.value}))}
+      placeholder="https://files.pythonhosted.org/..." className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+      style={{background:COLORS.canvas}} />
+    <input value={form.requested_by} onChange={e=>setForm(f=>({...f,requested_by:e.target.value}))}
+      placeholder="Requested by (agent ID)" className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+      style={{background:COLORS.canvas}} />
+    {error && <p className="text-xs font-semibold" style={{color:COLORS.accent}}>{error}</p>}
+    <button onClick={submit} disabled={loading}
+      className="w-full rounded-full py-2.5 text-sm font-bold text-white disabled:opacity-50"
+      style={{background:COLORS.ink}}>{loading ? "Scanning…" : "Submit Scan"}</button>
+    {result && <div className="rounded-xl p-3 text-sm" style={{background:COLORS.canvas}}>
+      <div className="flex justify-between items-center mb-1">
+        <b>{result.artifact_id}</b>
+        <span className="font-bold text-xs" style={{color:DECISION_COLOR[result.verdict?.decision] || COLORS.inkDim}}>
+          {result.verdict?.decision || result.status}
+        </span>
+      </div>
+      {result.verdict && <>
+        <div className="text-xs" style={{color:COLORS.inkDim}}>Risk score: <b style={{color:COLORS.ink}}>{result.verdict.risk_score}</b> · {result.verdict.risk_level}</div>
+        {result.verdict.blocked_reasons?.length > 0 && <ul className="mt-1 text-xs list-disc pl-4" style={{color:COLORS.accent}}>
+          {result.verdict.blocked_reasons.map((r,i)=><li key={i}>{r}</li>)}
+        </ul>}
+      </>}
+      {result.agent_report && <p className="mt-2 text-xs" style={{color:COLORS.inkDim}}>{result.agent_report}</p>}
+    </div>}
+  </div>;
+}
+
 export default function KavachDashboard() {
   const [agents, setAgents] = useState(initialAgents);
   const [events, setEvents] = useState(initialEvents);
@@ -73,6 +138,10 @@ export default function KavachDashboard() {
   const [notice, setNotice] = useState("");
   const [reviewed, setReviewed] = useState([]);
   const [navOpen, setNavOpen] = useState(false);
+  const [scanForm, setScanForm] = useState({ artifact_type: "python_package", source_url: "", requested_by: "operator" });
+  const [scanResult, setScanResult] = useState(null);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setScanError] = useState("");
 
   const notify = (message) => { setNotice(message); window.setTimeout(() => setNotice(""), 2800); };
   const selected = agents.find(a => a.id === selectedAgent) || agents[0];
@@ -109,7 +178,7 @@ export default function KavachDashboard() {
           <button onClick={()=>setNavOpen(v=>!v)} aria-label="Open navigation" className="w-10 h-10 rounded-full bg-white flex items-center justify-center"><Menu size={16}/></button>
           <div className="w-10 h-10 rounded-full flex items-center justify-center font-extrabold text-white" style={{background:COLORS.ink}}>KV</div>
           <div className="leading-tight"><b className="text-sm">Kavach</b><div className="text-sm font-semibold" style={{color:COLORS.inkDim}}>Scanner</div></div>
-          {navOpen && <div className="flex gap-2 ml-2"><Pill onClick={()=>{setModal("agents");setNavOpen(false)}}>Agents</Pill><Pill onClick={()=>{setModal("activity");setNavOpen(false)}}>Activity</Pill><Pill onClick={()=>{setModal("quarantine");setNavOpen(false)}}>Quarantine</Pill></div>}
+          {navOpen && <div className="flex gap-2 ml-2"><Pill onClick={()=>{setModal("agents");setNavOpen(false)}}>Agents</Pill><Pill onClick={()=>{setModal("activity");setNavOpen(false)}}>Activity</Pill><Pill onClick={()=>{setModal("quarantine");setNavOpen(false)}}>Quarantine</Pill><Pill onClick={()=>{setModal("scan");setScanResult(null);setScanError("");setNavOpen(false)}}>Scan Artifact</Pill></div>}
         </div>
         <div className="flex items-center gap-3">
           <button onClick={addAgent} title="Add demo agent" className="w-10 h-10 rounded-full bg-white flex items-center justify-center"><Plus size={17}/></button>
@@ -173,7 +242,7 @@ export default function KavachDashboard() {
 
     {(showLockConfirm || modal) && <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={()=>{setShowLockConfirm(false);setModal("")}}>
       <div className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl" onClick={e=>e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4"><h2 className="font-extrabold text-lg">{showLockConfirm?"System lock":modal==="quarantine"?"Quarantine review":modal==="scope"?"Agent scope":modal==="incident"?"Incident details":modal==="agents"?"Agent inventory":modal==="activity"?"Activity log":modal==="calendar"?"Review calendar":modal==="notifications"?"Notifications":"Kavach"}</h2><button onClick={()=>{setShowLockConfirm(false);setModal("")}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:COLORS.canvas}}><X size={16}/></button></div>
+        <div className="flex items-center justify-between mb-4"><h2 className="font-extrabold text-lg">{showLockConfirm?"System lock":modal==="quarantine"?"Quarantine review":modal==="scope"?"Agent scope":modal==="scan"?"Scan artifact":modal==="incident"?"Incident details":modal==="agents"?"Agent inventory":modal==="activity"?"Activity log":modal==="calendar"?"Review calendar":modal==="notifications"?"Notifications":"Kavach"}</h2><button onClick={()=>{setShowLockConfirm(false);setModal("")}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:COLORS.canvas}}><X size={16}/></button></div>
         {showLockConfirm ? <><p className="text-sm mb-4">{systemLocked?"Disable the system lock?":"Enable system lock? This demo action prevents resuming isolated agents."}</p><div className="flex justify-end gap-2"><button onClick={()=>setShowLockConfirm(false)} className="rounded-full px-4 py-2 text-sm" style={{background:COLORS.canvas}}>Cancel</button><button onClick={()=>{setSystemLocked(v=>!v);setShowLockConfirm(false);notify(`System lock ${systemLocked?"disabled":"enabled"}.`)}} className="rounded-full px-4 py-2 text-sm text-white" style={{background:COLORS.ink}}>{systemLocked?"Disable lock":"Enable lock"}</button></div></> :
         modal==="quarantine" ? <><p className="text-sm mb-3">Two agents are awaiting re-verification in this demo queue.</p>{["Agent-03","Research Agent"].map((a,i)=><div key={a} className="flex items-center justify-between py-3 border-t" style={{borderColor:COLORS.line}}><div><b className="text-sm">{a}</b><div className="text-xs text-gray-500">Pending verification</div></div><button disabled={reviewed.includes(a)} onClick={()=>{setReviewed(v=>[...v,a]);notify(`${a} marked reviewed.`)}} className="rounded-full px-3 py-2 text-xs font-bold text-white disabled:opacity-40" style={{background:COLORS.ink}}>{reviewed.includes(a)?"Reviewed":"Mark reviewed"}</button></div>)}</> :
         modal==="scope" ? <><p className="text-sm mb-3">Demo scope controls for <b>{selected.name}</b>.</p><div className="rounded-xl p-3 mb-3 text-sm" style={{background:COLORS.canvas}}>{selected.scope}<div className="text-xs text-gray-500 mt-1">Sandbox · least-privilege profile</div></div><button onClick={()=>{setAgents(prev=>prev.map(a=>a.id===selected.id?{...a,scope:a.scope==="Sandbox environment"?"Read-only sandbox":"Sandbox environment"}:a));setModal("");notify("Demo scope updated.")}} className="rounded-full px-4 py-2 text-sm text-white" style={{background:COLORS.ink}}>Toggle demo scope</button></> :
@@ -182,9 +251,16 @@ export default function KavachDashboard() {
         modal==="activity" ? <div className="space-y-2">{events.map(e=><div key={e.id} className="rounded-xl p-3" style={{background:COLORS.canvas}}><div className="text-xs text-gray-500">{e.time} · {e.agent}</div><b className="text-sm">{e.event}</b><div className="text-xs mt-1">{e.severity} · {e.decision}</div></div>)}</div> :
         modal==="calendar" ? <p className="text-sm">Review schedule: daily security review at 09:00. Calendar integration is not connected.</p> :
         modal==="notifications" ? <p className="text-sm">You have {events.filter(e=>e.severity==="Critical").length} critical demo event(s) and {agents.filter(a=>a.status==="Isolated").length} isolated agent(s).</p> :
+        modal==="scan" ? <ScanArtifactPanel
+          form={scanForm} setForm={setScanForm}
+          result={scanResult} setResult={setScanResult}
+          loading={scanLoading} setLoading={setScanLoading}
+          error={scanError} setError={setScanError}
+          notify={notify}
+        /> :
         <p className="text-sm">This control is a frontend demo. Connect your Kavach API to load live data and enforce real security actions.</p>}
       </div>
     </div>}
-    <div className="max-w-[1440px] mx-auto mt-2 text-[10px] text-center text-gray-500">Kavach UI demo · metrics and actions are local state only; no AWS resources are changed.</div>
+    <div className="max-w-[1440px] mx-auto mt-2 text-[10px] text-center text-gray-500">Kavach · scanner integrated · shield and agents coming soon.</div>
   </div>;
 }
