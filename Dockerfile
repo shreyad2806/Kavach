@@ -5,7 +5,13 @@
 FROM public.ecr.aws/lambda/python:3.11
 
 # Install system dependencies
-RUN dnf install -y git tar gzip && dnf clean all
+RUN yum install -y \
+    git \
+    tar \
+    gzip \
+    curl \
+    && yum clean all \
+    && rm -rf /var/cache/yum
 
 # Install Python scanner tools
 RUN pip install --no-cache-dir \
@@ -17,22 +23,31 @@ RUN pip install --no-cache-dir \
     strands-agents==0.1.0
 
 # Bundle semgrep rules at build time so Lambda needs no internet at runtime.
-# Rules are downloaded once here and referenced by local path when scanning.
 RUN mkdir -p /opt/semgrep-rules && \
-    semgrep --config p/python      --dump-config /opt/semgrep-rules/python.yaml      2>/dev/null || true && \
-    semgrep --config p/secrets     --dump-config /opt/semgrep-rules/secrets.yaml     2>/dev/null || true && \
-    semgrep --config p/supply-chain --dump-config /opt/semgrep-rules/supply-chain.yaml 2>/dev/null || true && \
-    semgrep --config p/javascript  --dump-config /opt/semgrep-rules/javascript.yaml  2>/dev/null || true && \
-    semgrep --config p/typescript  --dump-config /opt/semgrep-rules/typescript.yaml  2>/dev/null || true && \
-    semgrep --config p/golang      --dump-config /opt/semgrep-rules/golang.yaml      2>/dev/null || true && \
-    semgrep --config p/java        --dump-config /opt/semgrep-rules/java.yaml        2>/dev/null || true && \
-    semgrep --config p/ruby        --dump-config /opt/semgrep-rules/ruby.yaml        2>/dev/null || true && \
-    semgrep --config p/bash        --dump-config /opt/semgrep-rules/bash.yaml        2>/dev/null || true
+    semgrep --config p/python \
+        --dump-config /opt/semgrep-rules/python.yaml 2>/dev/null || true && \
+    semgrep --config p/secrets \
+        --dump-config /opt/semgrep-rules/secrets.yaml 2>/dev/null || true && \
+    semgrep --config p/supply-chain \
+        --dump-config /opt/semgrep-rules/supply-chain.yaml 2>/dev/null || true && \
+    semgrep --config p/javascript \
+        --dump-config /opt/semgrep-rules/javascript.yaml 2>/dev/null || true && \
+    semgrep --config p/typescript \
+        --dump-config /opt/semgrep-rules/typescript.yaml 2>/dev/null || true && \
+    semgrep --config p/golang \
+        --dump-config /opt/semgrep-rules/golang.yaml 2>/dev/null || true && \
+    semgrep --config p/java \
+        --dump-config /opt/semgrep-rules/java.yaml 2>/dev/null || true && \
+    semgrep --config p/ruby \
+        --dump-config /opt/semgrep-rules/ruby.yaml 2>/dev/null || true && \
+    semgrep --config p/bash \
+        --dump-config /opt/semgrep-rules/bash.yaml 2>/dev/null || true
 
 ENV SEMGREP_RULES_DIR=/opt/semgrep-rules
 
 # Install gitleaks (Go binary — download prebuilt release)
-RUN curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
+RUN curl -sSfL \
+    https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
     | tar -xz -C /usr/local/bin gitleaks \
     && chmod +x /usr/local/bin/gitleaks
 
