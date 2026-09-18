@@ -35,6 +35,10 @@ class CapabilityService:
                     name=CapabilityName.RESEARCH_READ,
                     description="Authority to read research documents and data"
                 ),
+                Capability(
+                    name=CapabilityName.RESEARCH_WRITE,
+                    description="Authority to write research output to workspace"
+                ),
             ],
             "coding-01": [
                 Capability(

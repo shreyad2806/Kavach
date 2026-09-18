@@ -19,6 +19,7 @@ class ResourceName(str, Enum):
 class ActionName(str, Enum):
     RESEARCH_SEARCH = "research.search"
     RESEARCH_READ = "research.read"
+    RESEARCH_WRITE = "research.write"
     CODING_READ = "coding.read"
     CODING_WRITE = "coding.write"
     CODING_TEST = "coding.test"

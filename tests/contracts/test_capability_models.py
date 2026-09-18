@@ -8,6 +8,7 @@ def test_capability_name_vocabulary():
     expected_capabilities = {
         "research.search",
         "research.read",
+        "research.write",
         "coding.read",
         "coding.write",
         "coding.test",

@@ -2,8 +2,15 @@ from pathlib import Path
 from typing import Any
 
 from agents.common.messages import AgentMessage
+from sandbox.runtime.kavach_guard import KavachGuard
 from sandbox.runtime.message_bus import MessageBus
 from sandbox.runtime.workspace import SafeWorkspace
+from shield.capabilities.models import CapabilityName
+from shield.gateway.models import ActionName, ResourceName
+
+
+# Module-level guard instance shared by all VerificationTools instances
+_guard = KavachGuard()
 
 
 class VerificationTools:
@@ -17,6 +24,7 @@ class VerificationTools:
         self.message_bus = message_bus
         self.workspace = SafeWorkspace("verification", workspace)
 
+    @_guard.protect("verification", ActionName.VERIFICATION_TEST, ResourceName.TEST_ENVIRONMENT, CapabilityName.VERIFICATION_TEST)
     def inspect_output(
         self,
         filename: str,
@@ -41,6 +49,7 @@ class VerificationTools:
                 "file": filename,
             }
 
+    @_guard.protect("verification", ActionName.VERIFICATION_TEST, ResourceName.TEST_ENVIRONMENT, CapabilityName.VERIFICATION_TEST)
     def run_tests(self) -> dict[str, Any]:
         """Simulate controlled verification tests."""
 

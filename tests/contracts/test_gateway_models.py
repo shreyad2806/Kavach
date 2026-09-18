@@ -34,6 +34,7 @@ def test_action_name_vocabulary():
     expected_actions = {
         "research.search",
         "research.read",
+        "research.write",
         "coding.read",
         "coding.write",
         "coding.test",

@@ -17,6 +17,12 @@ permit (
     resource == Resource::"research-data"
 );
 
+permit (
+    principal == Agent::"research-01",
+    action == Action::"research.write",
+    resource == Resource::"research-data"
+);
+
 // ============================================================================
 // Coding Agent Policies
 // ============================================================================
@@ -54,10 +60,25 @@ permit (
 );
 
 // ============================================================================
+// =======================================================================
+// Orchestrator Agent Policies
+// =======================================================================
+permit (
+    principal == Agent::"orchestrator-01",
+    action == Action::"orchestrator.delegate",
+    resource == Resource::"workspace"
+);
+
+// =======================================================================
+// Verification Agent Policies
+// =======================================================================
+permit (
+    principal == Agent::"verification-01",
+    action == Action::"verification.test",
+    resource == Resource::"test-environment"
+);
+
 // No policies for:
-// - orchestrator-01
-// - verification-01
-// - deployment.deploy
 // - cross-agent delegation
 // - quarantine
 // - suspicious behavior

@@ -1,7 +1,14 @@
 from typing import Any
 
 from agents.common.messages import AgentMessage
+from sandbox.runtime.kavach_guard import KavachGuard
 from sandbox.runtime.message_bus import MessageBus
+from shield.capabilities.models import CapabilityName
+from shield.gateway.models import ActionName, ResourceName
+
+
+# Module-level guard instance shared by all DeploymentTools instances
+_guard = KavachGuard()
 
 
 class DeploymentTools:
@@ -10,6 +17,7 @@ class DeploymentTools:
     def __init__(self, message_bus: MessageBus) -> None:
         self.message_bus = message_bus
 
+    @_guard.protect("deployment", ActionName.DEPLOYMENT_PREVIEW, ResourceName.STAGING_ENVIRONMENT, CapabilityName.DEPLOYMENT_PREVIEW)
     def simulate_deployment(
         self,
         target: str,
@@ -27,6 +35,7 @@ class DeploymentTools:
             "message": f"Deployment simulated for {target}.",
         }
 
+    @_guard.protect("deployment", ActionName.DEPLOYMENT_PREVIEW, ResourceName.STAGING_ENVIRONMENT, CapabilityName.DEPLOYMENT_PREVIEW)
     def inspect_infrastructure(
         self,
         target: str,

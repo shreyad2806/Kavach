@@ -2,8 +2,15 @@ from pathlib import Path
 from typing import Any
 
 from agents.common.messages import AgentMessage
+from sandbox.runtime.kavach_guard import KavachGuard
 from sandbox.runtime.message_bus import MessageBus
 from sandbox.runtime.workspace import SafeWorkspace
+from shield.capabilities.models import CapabilityName
+from shield.gateway.models import ActionName, ResourceName
+
+
+# Module-level guard instance shared by all CodingTools instances
+_guard = KavachGuard()
 
 
 class CodingTools:
@@ -17,10 +24,12 @@ class CodingTools:
         self.message_bus = message_bus
         self.workspace = SafeWorkspace("coding", workspace)
 
+    @_guard.protect("coding", ActionName.CODING_READ, ResourceName.WORKSPACE, CapabilityName.CODING_READ)
     def read_file(self, filename: str) -> str:
         """Read a file from the Coding workspace."""
         return self.workspace.read_text(filename)
 
+    @_guard.protect("coding", ActionName.CODING_WRITE, ResourceName.WORKSPACE, CapabilityName.CODING_WRITE)
     def write_file(
         self,
         filename: str,
@@ -29,6 +38,7 @@ class CodingTools:
         """Write a file into the Coding workspace."""
         return str(self.workspace.write_text(filename, content))
 
+    @_guard.protect("coding", ActionName.CODING_TEST, ResourceName.TEST_ENVIRONMENT, CapabilityName.CODING_TEST)
     def run_tests(self) -> dict[str, Any]:
         """
         Simulate running tests.

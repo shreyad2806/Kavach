@@ -20,6 +20,12 @@
         "resourceTypes": ["Resource"]
       }
     },
+    "research.write": {
+      "appliesTo": {
+        "principalTypes": ["Agent"],
+        "resourceTypes": ["Resource"]
+      }
+    },
     "coding.read": {
       "appliesTo": {
         "principalTypes": ["Agent"],

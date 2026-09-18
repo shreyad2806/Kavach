@@ -10,6 +10,7 @@ from shield.gateway.models import ActionName
 ACTION_CAPABILITY_MAP: dict[ActionName, CapabilityName] = {
     ActionName.RESEARCH_SEARCH: CapabilityName.RESEARCH_SEARCH,
     ActionName.RESEARCH_READ: CapabilityName.RESEARCH_READ,
+    ActionName.RESEARCH_WRITE: CapabilityName.RESEARCH_WRITE,
     ActionName.CODING_READ: CapabilityName.CODING_READ,
     ActionName.CODING_WRITE: CapabilityName.CODING_WRITE,
     ActionName.CODING_TEST: CapabilityName.CODING_TEST,

@@ -186,8 +186,8 @@ def test_8_deployment_preview_allowed(adapter):
 # TEST 9 - Verification has no policy
 # ============================================================================
 
-def test_9_verification_no_policy_denied(adapter):
-    """Verification agent has no policy and must be denied."""
+def test_9_verification_test_allowed(adapter):
+    """Verification agent has Cedar policy for verification.test → ALLOW."""
     request = _make_request(
         source_agent=AgentId.VERIFICATION_01,
         action=ActionName.VERIFICATION_TEST,
@@ -195,7 +195,7 @@ def test_9_verification_no_policy_denied(adapter):
         capability=CapabilityName.VERIFICATION_TEST,
     )
     result = adapter.evaluate(request)
-    assert result == AuthorizationDecision.DENY
+    assert result == AuthorizationDecision.ALLOW
 
 
 # ============================================================================

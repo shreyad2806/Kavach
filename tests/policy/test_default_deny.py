@@ -95,10 +95,10 @@ def test_9_orchestrator_no_policy_denied(adapter):
     assert result == AuthorizationDecision.DENY
 
 
-def test_9_verification_no_policy_denied(adapter):
-    """verification-01 | verification.test | test-environment => DENY.
+def test_9_verification_test_allowed(adapter):
+    """verification-01 | verification.test | test-environment => ALLOW.
 
-    Verification has no Cedar permit policy.
+    Verification has Cedar permit policy for test-environment.
     """
     request = _make_request(
         source_agent=AgentId.VERIFICATION_01,
@@ -107,13 +107,13 @@ def test_9_verification_no_policy_denied(adapter):
         capability=CapabilityName.VERIFICATION_TEST,
     )
     result = adapter.evaluate(request)
-    assert result == AuthorizationDecision.DENY
+    assert result == AuthorizationDecision.ALLOW
 
 
-def test_9_orchestrator_delegate_denied(adapter):
+def test_9_orchestrator_delegate_wrong_resource_denied(adapter):
     """orchestrator-01 | orchestrator.delegate | research-data => DENY.
 
-    Orchestrator delegate action has no Cedar permit policy.
+    Orchestrator delegate is only permitted on workspace, not research-data.
     """
     request = _make_request(
         source_agent=AgentId.ORCHESTRATOR_01,

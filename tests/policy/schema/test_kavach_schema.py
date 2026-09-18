@@ -19,6 +19,7 @@ POLICIES_PATH = Path("shield/policy/cedar/policies.cedar")
 EXPECTED_ACTIONS = [
     "research.search",
     "research.read",
+    "research.write",
     "coding.read",
     "coding.write",
     "coding.test",

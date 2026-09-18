@@ -14,9 +14,9 @@ class TestCapabilityService:
         """TEST 1 — Research capabilities."""
         capabilities = self.service.get_capabilities("research-01")
         
-        assert len(capabilities) == 2
+        assert len(capabilities) == 3
         capability_names = {cap.name.value for cap in capabilities}
-        assert capability_names == {"research.search", "research.read"}
+        assert capability_names == {"research.search", "research.read", "research.write"}
     
     def test_2_coding_capabilities(self):
         """TEST 2 — Coding capabilities."""
@@ -98,11 +98,11 @@ class TestCapabilityService:
         # Verify the internal registry is unchanged
         caps_after = self.service.get_capabilities("research-01")
         assert len(caps_after) == original_count
-        assert len(caps_after) == 2
+        assert len(caps_after) == 3
         
         # Verify capabilities are still present
         capability_names = {cap.name.value for cap in caps_after}
-        assert capability_names == {"research.search", "research.read"}
+        assert capability_names == {"research.search", "research.read", "research.write"}
     
     def test_12_all_canonical_agents_have_capabilities(self):
         """TEST 12 — All canonical agents have capabilities."""
