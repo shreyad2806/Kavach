@@ -64,7 +64,7 @@ def _write_artifact(tmpdir: str, data: bytes) -> str:
 def _get_status_url(artifact_id: str) -> str:
     """Build the status polling URL for an artifact."""
     api_id = os.environ.get("API_GATEWAY_ID", "")
-    region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+    region = os.environ.get("AWS_DEFAULT_REGION", "ap-south-1")
     if api_id:
         return f"https://{api_id}.execute-api.{region}.amazonaws.com/Prod/artifacts/{artifact_id}"
     return f"/artifacts/{artifact_id}"
