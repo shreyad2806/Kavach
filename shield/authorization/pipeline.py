@@ -20,6 +20,9 @@ Security Invariant:
     There is NO LLM call anywhere in authorize().
 """
 
+import logging
+from typing import Any, Callable
+
 from shield.capabilities.service import CapabilityService
 from shield.detection import detect
 from shield.detection.signals import calculate_risk
@@ -38,6 +41,9 @@ from shield.provenance.validator import (
     ProvenanceValidationResult,
     validate_provenance,
 )
+from shield.telemetry import create_authorization_decision_event, write_event
+
+logger = logging.getLogger(__name__)
 
 
 def authorize(
@@ -45,6 +51,7 @@ def authorize(
     identity_service: IdentityService | None = None,
     capability_service: CapabilityService | None = None,
     cedar_adapter: CedarAdapter | None = None,
+    audit_writer: Callable[..., Any] | None = None,
 ) -> AuthorizationResult:
     """
     Execute the full Kavach authorization pipeline against an ActionRequest.
@@ -52,12 +59,15 @@ def authorize(
     Each check is evaluated in order. Any critical failure short-circuits
     to DENY. The final result populates the existing AuthorizationResult
     contract with full check traceability.
+    Every completed decision emits exactly one AUTHORIZATION_DECISION event
+    to the audit sink.
 
     Parameters:
         request: The ActionRequest to evaluate.
         identity_service: Service for agent identity lookup. Uses default if None.
         capability_service: Service for capability verification. Uses default if None.
         cedar_adapter: Adapter for Cedar policy evaluation. Uses default if None.
+        audit_writer: Optional custom audit writer callable. Uses write_event if None.
 
     Returns:
         AuthorizationResult with decision, reason codes, check traceability,
@@ -89,7 +99,9 @@ def authorize(
         reason_codes.append(ReasonCode.IDENTITY_FAILURE)
         agent_state = SecurityState.TERMINATED
         risk_score = calculate_risk(reason_codes)
-        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        _emit_telemetry(request, result, audit_writer)
+        return result
 
     checks.identity = CheckStatus.PASS
     agent_state = agent_identity.state
@@ -106,7 +118,9 @@ def authorize(
         else:
             reason_codes.append(ReasonCode.IDENTITY_FAILURE)
         risk_score = calculate_risk(reason_codes)
-        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        _emit_telemetry(request, result, audit_writer)
+        return result
 
     checks.agent_state = CheckStatus.PASS
 
@@ -124,7 +138,9 @@ def authorize(
         decision = AuthorizationDecision.DENY
         reason_codes.append(ReasonCode.CAPABILITY_MISMATCH)
         risk_score = calculate_risk(reason_codes)
-        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        _emit_telemetry(request, result, audit_writer)
+        return result
 
     checks.capability = CheckStatus.PASS
 
@@ -140,7 +156,9 @@ def authorize(
         if provenance_result.reason_code:
             reason_codes.append(provenance_result.reason_code)
         risk_score = calculate_risk(reason_codes)
-        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        _emit_telemetry(request, result, audit_writer)
+        return result
 
     checks.provenance = CheckStatus.PASS
 
@@ -205,7 +223,28 @@ def authorize(
     if decision != AuthorizationDecision.DENY:
         decision = AuthorizationDecision.ALLOW
 
-    return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+    result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+    _emit_telemetry(request, result, audit_writer)
+    return result
+
+
+def _emit_telemetry(
+    request: ActionRequest,
+    result: AuthorizationResult,
+    audit_writer: Callable[..., Any] | None = None,
+) -> None:
+    """
+    Emit exactly one AUTHORIZATION_DECISION event to the audit sink.
+
+    Telemetry is an audit side effect, NOT an authorization gate:
+    Failures in telemetry MUST NOT alter or prevent the authorization verdict.
+    """
+    try:
+        event = create_authorization_decision_event(request, result)
+        writer = audit_writer if audit_writer is not None else write_event
+        writer(event)
+    except Exception as exc:
+        logger.warning("Failed to emit security telemetry event: %s", exc)
 
 
 def _build_result(
