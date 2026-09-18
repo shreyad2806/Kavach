@@ -14,6 +14,7 @@ from shield.gateway.models import (
     ActionRequest,
     AuthorizationDecision,
     CapabilityName,
+    CheckStatus,
     ReasonCode,
     ResourceName,
 )
@@ -69,7 +70,7 @@ def test_3_quarantined_agent_deny():
 
     assert result.decision == AuthorizationDecision.DENY
     assert ReasonCode.AGENT_QUARANTINED in result.reason_codes
-    assert result.checks.identity is True
+    assert result.checks.identity == CheckStatus.PASS
     assert result.agent_state == SecurityState.QUARANTINED
 
 
@@ -95,7 +96,7 @@ def test_terminated_agent_deny():
 
     assert result.decision == AuthorizationDecision.DENY
     assert ReasonCode.IDENTITY_FAILURE in result.reason_codes
-    assert result.checks.identity is True
+    assert result.checks.identity == CheckStatus.PASS
     assert result.agent_state == SecurityState.TERMINATED
 
 

@@ -21,11 +21,13 @@ Security Invariant:
 """
 
 from shield.capabilities.service import CapabilityService
+from shield.detection.signals import calculate_risk
 from shield.gateway.models import (
     ActionRequest,
     AuthorizationChecks,
     AuthorizationDecision,
     AuthorizationResult,
+    CheckStatus,
     ReasonCode,
 )
 from shield.identity.models import AgentIdentity, SecurityState
@@ -81,13 +83,14 @@ def authorize(
 
     if agent_identity is None:
         # Unknown agent — critical failure
-        checks.identity = False
+        checks.identity = CheckStatus.FAIL
         decision = AuthorizationDecision.DENY
         reason_codes.append(ReasonCode.IDENTITY_FAILURE)
         agent_state = SecurityState.TERMINATED
-        return _build_result(request, decision, reason_codes, checks, agent_state)
+        risk_score = calculate_risk(reason_codes)
+        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
 
-    checks.identity = True
+    checks.identity = CheckStatus.PASS
     agent_state = agent_identity.state
 
     # =========================================================================
@@ -95,13 +98,16 @@ def authorize(
     # =========================================================================
     if agent_identity.state in (SecurityState.QUARANTINED, SecurityState.TERMINATED):
         # Quarantined or terminated agent — critical failure
-        checks.identity = True  # Identity was valid
+        checks.agent_state = CheckStatus.FAIL
         decision = AuthorizationDecision.DENY
         if agent_identity.state == SecurityState.QUARANTINED:
             reason_codes.append(ReasonCode.AGENT_QUARANTINED)
         else:
             reason_codes.append(ReasonCode.IDENTITY_FAILURE)
-        return _build_result(request, decision, reason_codes, checks, agent_state)
+        risk_score = calculate_risk(reason_codes)
+        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+
+    checks.agent_state = CheckStatus.PASS
 
     # =========================================================================
     # CHECK 3: Capability
@@ -113,12 +119,13 @@ def authorize(
 
     if not has_capability:
         # Capability mismatch — critical failure
-        checks.capability = False
+        checks.capability = CheckStatus.FAIL
         decision = AuthorizationDecision.DENY
         reason_codes.append(ReasonCode.CAPABILITY_MISMATCH)
-        return _build_result(request, decision, reason_codes, checks, agent_state)
+        risk_score = calculate_risk(reason_codes)
+        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
 
-    checks.capability = True
+    checks.capability = CheckStatus.PASS
 
     # =========================================================================
     # CHECK 4: Provenance
@@ -127,13 +134,14 @@ def authorize(
 
     if not provenance_result.valid:
         # Invalid provenance — critical failure
-        checks.provenance = False
+        checks.provenance = CheckStatus.FAIL
         decision = AuthorizationDecision.DENY
         if provenance_result.reason_code:
             reason_codes.append(provenance_result.reason_code)
-        return _build_result(request, decision, reason_codes, checks, agent_state)
+        risk_score = calculate_risk(reason_codes)
+        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
 
-    checks.provenance = True
+    checks.provenance = CheckStatus.PASS
 
     # =========================================================================
     # CHECK 5: Cedar
@@ -142,12 +150,12 @@ def authorize(
 
     if cedar_decision == AuthorizationDecision.DENY:
         # Cedar denied — critical failure, NEVER overridden
-        checks.cedar = False
+        checks.cedar = CheckStatus.DENY
         decision = AuthorizationDecision.DENY
         reason_codes.append(ReasonCode.POLICY_DENIED)
         return _build_result(request, decision, reason_codes, checks, agent_state)
 
-    checks.cedar = True
+    checks.cedar = CheckStatus.ALLOW
 
     # =========================================================================
     # CHECK 6: Deterministic Security Rules
@@ -163,18 +171,25 @@ def authorize(
     # Rule: deployment.deploy must be Cedar-allowed
     from shield.gateway.models import ActionName
     if request.action == ActionName.DEPLOYMENT_DEPLOY:
-        if checks.cedar is not True:
+        if checks.cedar != CheckStatus.ALLOW:
             rules_passed = False
 
     # Rule: no quarantined agent reaches this point (defense-in-depth)
     if agent_state in (SecurityState.QUARANTINED, SecurityState.TERMINATED):
         rules_passed = False
 
-    checks.deterministic_rules = rules_passed
+    checks.deterministic_rules = CheckStatus.PASS if rules_passed else CheckStatus.BLOCK
 
     if not rules_passed:
         decision = AuthorizationDecision.DENY
-        return _build_result(request, decision, reason_codes, checks, agent_state)
+        risk_score = calculate_risk(reason_codes)
+        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+
+    # =========================================================================
+    # CHECK 7: Detection (Phase 11)
+    # =========================================================================
+    # Calculate risk score from reason codes using Phase 11 detection
+    risk_score = calculate_risk(reason_codes)
 
     # =========================================================================
     # FINAL DECISION
@@ -182,7 +197,7 @@ def authorize(
     # All checks passed — ALLOW
     decision = AuthorizationDecision.ALLOW
 
-    return _build_result(request, decision, reason_codes, checks, agent_state)
+    return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
 
 
 def _build_result(
@@ -191,12 +206,14 @@ def _build_result(
     reason_codes: list[ReasonCode],
     checks: AuthorizationChecks,
     agent_state: SecurityState,
+    risk_score: int | None = None,
 ) -> AuthorizationResult:
     """Build the final AuthorizationResult from the pipeline state."""
     return AuthorizationResult(
         request_id=request.request_id,
         decision=decision,
         reason_codes=reason_codes,
+        risk_score=risk_score,
         checks=checks,
         agent_state=agent_state,
     )

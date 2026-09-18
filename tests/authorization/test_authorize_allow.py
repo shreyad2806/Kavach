@@ -15,6 +15,7 @@ from shield.gateway.models import (
     ActionRequest,
     AuthorizationDecision,
     CapabilityName,
+    CheckStatus,
     ResourceName,
 )
 from shield.identity.models import AgentId, SecurityState
@@ -62,11 +63,11 @@ def test_1_valid_research_request_allow():
     assert result.decision == AuthorizationDecision.ALLOW
     assert result.request_id == request.request_id
     assert result.reason_codes == []
-    assert result.checks.identity is True
-    assert result.checks.capability is True
-    assert result.checks.provenance is True
-    assert result.checks.cedar is True
-    assert result.checks.deterministic_rules is True
+    assert result.checks.identity == CheckStatus.PASS
+    assert result.checks.capability == CheckStatus.PASS
+    assert result.checks.provenance == CheckStatus.PASS
+    assert result.checks.cedar == CheckStatus.ALLOW
+    assert result.checks.deterministic_rules == CheckStatus.PASS
     assert result.agent_state == SecurityState.ACTIVE
 
 
@@ -85,11 +86,11 @@ def test_8_valid_coding_request_allow():
     result = authorize(request)
 
     assert result.decision == AuthorizationDecision.ALLOW
-    assert result.checks.identity is True
-    assert result.checks.capability is True
-    assert result.checks.provenance is True
-    assert result.checks.cedar is True
-    assert result.checks.deterministic_rules is True
+    assert result.checks.identity == CheckStatus.PASS
+    assert result.checks.capability == CheckStatus.PASS
+    assert result.checks.provenance == CheckStatus.PASS
+    assert result.checks.cedar == CheckStatus.ALLOW
+    assert result.checks.deterministic_rules == CheckStatus.PASS
     assert result.agent_state == SecurityState.ACTIVE
 
 
@@ -108,9 +109,9 @@ def test_9_valid_deployment_production_request_allow():
     result = authorize(request)
 
     assert result.decision == AuthorizationDecision.ALLOW
-    assert result.checks.identity is True
-    assert result.checks.capability is True
-    assert result.checks.provenance is True
-    assert result.checks.cedar is True
-    assert result.checks.deterministic_rules is True
+    assert result.checks.identity == CheckStatus.PASS
+    assert result.checks.capability == CheckStatus.PASS
+    assert result.checks.provenance == CheckStatus.PASS
+    assert result.checks.cedar == CheckStatus.ALLOW
+    assert result.checks.deterministic_rules == CheckStatus.PASS
     assert result.agent_state == SecurityState.ACTIVE

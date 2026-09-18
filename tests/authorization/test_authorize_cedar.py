@@ -14,6 +14,7 @@ from shield.gateway.models import (
     ActionRequest,
     AuthorizationDecision,
     CapabilityName,
+    CheckStatus,
     ReasonCode,
     ResourceName,
 )
@@ -66,10 +67,10 @@ def test_6_cedar_denial_deny():
 
     assert result.decision == AuthorizationDecision.DENY
     assert ReasonCode.POLICY_DENIED in result.reason_codes
-    assert result.checks.identity is True
-    assert result.checks.capability is True
-    assert result.checks.provenance is True
-    assert result.checks.cedar is False
+    assert result.checks.identity == CheckStatus.PASS
+    assert result.checks.capability == CheckStatus.PASS
+    assert result.checks.provenance == CheckStatus.PASS
+    assert result.checks.cedar == CheckStatus.DENY
 
 
 # ============================================================================
@@ -92,7 +93,7 @@ def test_7_cedar_deny_never_overridden():
 
     # Cedar denied
     assert result.decision == AuthorizationDecision.DENY
-    assert result.checks.cedar is False
+    assert result.checks.cedar == CheckStatus.DENY
     assert ReasonCode.POLICY_DENIED in result.reason_codes
 
     # Even though deterministic_rules might pass (defense-in-depth check),
@@ -121,7 +122,7 @@ def test_cedar_denial_prevents_allow():
     result = authorize(request, cedar_adapter=cedar_adapter)
 
     # Verify Cedar was evaluated and denied
-    assert result.checks.cedar is False
+    assert result.checks.cedar == CheckStatus.DENY
 
     # Verify the final decision is DENY (not overridden by rules)
     assert result.decision == AuthorizationDecision.DENY
