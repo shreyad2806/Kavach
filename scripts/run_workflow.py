@@ -23,7 +23,7 @@ def main() -> None:
 
     print("\n[1] All agents initialized.")
 
-    print("\n[2] Orchestrator → Research")
+    print("\n[2] Orchestrator -> Research")
     orchestrator.delegate(
         "research",
         {
@@ -51,7 +51,7 @@ def main() -> None:
         },
     )
 
-    print("\n[3] Orchestrator → Coding")
+    print("\n[3] Orchestrator -> Coding")
     orchestrator.delegate(
         "coding",
         {
@@ -94,7 +94,7 @@ def main() -> None:
         },
     )
 
-    print("\n[5] Orchestrator → Deployment")
+    print("\n[5] Orchestrator -> Deployment")
     orchestrator.delegate(
         "deployment",
         {

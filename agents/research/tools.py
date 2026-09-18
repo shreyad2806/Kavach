@@ -3,6 +3,8 @@ from typing import Any
 
 from agents.common.messages import AgentMessage
 from sandbox.runtime.message_bus import MessageBus
+from sandbox.runtime.workspace import SafeWorkspace
+from sandbox.runtime.network import NetworkManager
 
 
 class ResearchTools:
@@ -12,14 +14,11 @@ class ResearchTools:
         self,
         message_bus: MessageBus,
         workspace: str = "sandbox/workspace/research",
+        network_manager: NetworkManager | None = None,
     ) -> None:
         self.message_bus = message_bus
-        self.workspace = Path(workspace)
-
-        self.workspace.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        self.workspace = SafeWorkspace("research", workspace)
+        self.network_manager = network_manager or NetworkManager()
 
     def web_search(self, query: str) -> dict[str, Any]:
         """
@@ -28,6 +27,7 @@ class ResearchTools:
         This is intentionally local for the MVP.
         A real web-search provider can be connected later.
         """
+        self.network_manager.check_access("research", "web_search")
         return {
             "query": query,
             "results": [
@@ -40,21 +40,7 @@ class ResearchTools:
 
     def read_document(self, filename: str) -> str:
         """Read a document from the Research workspace."""
-        file_path = self.workspace / filename
-
-        if not file_path.exists():
-            raise FileNotFoundError(
-                f"Document not found: {filename}"
-            )
-
-        if not file_path.is_file():
-            raise ValueError(
-                f"Not a file: {filename}"
-            )
-
-        return file_path.read_text(
-            encoding="utf-8"
-        )
+        return self.workspace.read_text(filename)
 
     def write_research(
         self,
@@ -62,14 +48,7 @@ class ResearchTools:
         content: str,
     ) -> str:
         """Write research output to the Research workspace."""
-        file_path = self.workspace / filename
-
-        file_path.write_text(
-            content,
-            encoding="utf-8",
-        )
-
-        return str(file_path)
+        return str(self.workspace.write_text(filename, content))
 
     def send_message(
         self,
