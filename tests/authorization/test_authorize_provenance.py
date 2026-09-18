@@ -14,6 +14,7 @@ from shield.gateway.models import (
     ActionRequest,
     AuthorizationDecision,
     CapabilityName,
+    CheckStatus,
     ReasonCode,
     ResourceName,
 )
@@ -72,9 +73,9 @@ def test_5_invalid_provenance_deny():
 
     assert result.decision == AuthorizationDecision.DENY
     assert ReasonCode.PROVENANCE_ANOMALY in result.reason_codes
-    assert result.checks.identity is True
-    assert result.checks.capability is True
-    assert result.checks.provenance is False
+    assert result.checks.identity == CheckStatus.PASS
+    assert result.checks.capability == CheckStatus.PASS
+    assert result.checks.provenance == CheckStatus.FAIL
 
 
 # ============================================================================

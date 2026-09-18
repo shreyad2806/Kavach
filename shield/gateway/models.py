@@ -129,18 +129,47 @@ class ActionRequest(BaseModel):
     )
 
 
+class CheckStatus(str, Enum):
+    """Standardized status for security verification checks."""
+    PASS = "PASS"
+    FAIL = "FAIL"
+    ALLOW = "ALLOW"
+    DENY = "DENY"
+    BLOCK = "BLOCK"
+    NOT_EVALUATED = "NOT_EVALUATED"
+
+
 class AuthorizationChecks(BaseModel):
     """
     Structured outcome flags for individual security verification stages.
-    Populated by downstream security services; defaults to uncalculated (None).
+    Populated by downstream security services; defaults to NOT_EVALUATED.
     """
     model_config = ConfigDict(extra="forbid")
 
-    identity: bool | None = Field(default=None, description="Identity validation outcome.")
-    capability: bool | None = Field(default=None, description="Capability verification outcome.")
-    provenance: bool | None = Field(default=None, description="Provenance graph validation outcome.")
-    cedar: bool | None = Field(default=None, description="Cedar policy engine outcome.")
-    deterministic_rules: bool | None = Field(default=None, description="Deterministic security rules outcome.")
+    identity: CheckStatus = Field(
+        default=CheckStatus.NOT_EVALUATED,
+        description="Identity validation outcome."
+    )
+    agent_state: CheckStatus = Field(
+        default=CheckStatus.NOT_EVALUATED,
+        description="Agent security state validation outcome."
+    )
+    capability: CheckStatus = Field(
+        default=CheckStatus.NOT_EVALUATED,
+        description="Capability verification outcome."
+    )
+    provenance: CheckStatus = Field(
+        default=CheckStatus.NOT_EVALUATED,
+        description="Provenance graph validation outcome."
+    )
+    cedar: CheckStatus = Field(
+        default=CheckStatus.NOT_EVALUATED,
+        description="Cedar policy engine outcome."
+    )
+    deterministic_rules: CheckStatus = Field(
+        default=CheckStatus.NOT_EVALUATED,
+        description="Deterministic security rules outcome."
+    )
 
 
 class AuthorizationResult(BaseModel):

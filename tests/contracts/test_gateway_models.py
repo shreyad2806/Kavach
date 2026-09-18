@@ -9,6 +9,7 @@ from shield.gateway.models import (
     AuthorizationChecks,
     AuthorizationDecision,
     AuthorizationResult,
+    CheckStatus,
     ReasonCode,
     RequestContext,
     ResourceName,
@@ -163,23 +164,24 @@ def test_reason_codes_vocabulary():
 
 
 def test_authorization_checks_model():
-    # Uncalculated default is None
+    # Default checks should be NOT_EVALUATED
     checks = AuthorizationChecks()
-    assert checks.identity is None
-    assert checks.capability is None
-    assert checks.provenance is None
-    assert checks.cedar is None
-    assert checks.deterministic_rules is None
+    assert checks.identity == CheckStatus.NOT_EVALUATED
+    assert checks.agent_state == CheckStatus.NOT_EVALUATED
+    assert checks.capability == CheckStatus.NOT_EVALUATED
+    assert checks.provenance == CheckStatus.NOT_EVALUATED
+    assert checks.cedar == CheckStatus.NOT_EVALUATED
+    assert checks.deterministic_rules == CheckStatus.NOT_EVALUATED
 
     # Calculated checks
     checks_populated = AuthorizationChecks(
-        identity=True,
-        capability=False,
-        provenance=True,
-        cedar=False,
-        deterministic_rules=False,
+        identity=CheckStatus.PASS,
+        capability=CheckStatus.FAIL,
+        provenance=CheckStatus.PASS,
+        cedar=CheckStatus.DENY,
+        deterministic_rules=CheckStatus.BLOCK,
     )
-    assert checks_populated.capability is False
+    assert checks_populated.capability == CheckStatus.FAIL
 
 
 def test_authorization_result_creation_and_serialization():
@@ -189,11 +191,12 @@ def test_authorization_result_creation_and_serialization():
         reason_codes=[ReasonCode.CAPABILITY_MISMATCH],
         risk_score=85,
         checks=AuthorizationChecks(
-            identity=True,
-            capability=False,
-            provenance=True,
-            cedar=False,
-            deterministic_rules=False,
+            identity=CheckStatus.PASS,
+            agent_state=CheckStatus.PASS,
+            capability=CheckStatus.FAIL,
+            provenance=CheckStatus.PASS,
+            cedar=CheckStatus.DENY,
+            deterministic_rules=CheckStatus.BLOCK,
         ),
         agent_state=SecurityState.ACTIVE,
     )

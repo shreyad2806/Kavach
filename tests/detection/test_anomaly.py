@@ -13,6 +13,7 @@ from shield.gateway.models import (
     ActionRequest,
     AuthorizationDecision,
     CapabilityName,
+    CheckStatus,
     ReasonCode,
     ResourceName,
 )
@@ -438,7 +439,7 @@ def test_section_9_detection_does_not_override_authorization():
 
     # 3. Cedar / pipeline must DENY the request
     assert auth_result.decision == AuthorizationDecision.DENY
-    assert auth_result.checks.cedar is False
+    assert auth_result.checks.cedar == CheckStatus.DENY
     assert ReasonCode.POLICY_DENIED in auth_result.reason_codes
 
     # 4. Detection score does not dictate authorization verdict

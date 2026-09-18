@@ -14,6 +14,7 @@ from shield.gateway.models import (
     ActionRequest,
     AuthorizationDecision,
     CapabilityName,
+    CheckStatus,
     ReasonCode,
     ResourceName,
 )
@@ -65,8 +66,8 @@ def test_4_capability_mismatch_deny():
 
     assert result.decision == AuthorizationDecision.DENY
     assert ReasonCode.CAPABILITY_MISMATCH in result.reason_codes
-    assert result.checks.identity is True
-    assert result.checks.capability is False
+    assert result.checks.identity == CheckStatus.PASS
+    assert result.checks.capability == CheckStatus.FAIL
 
 
 # ============================================================================

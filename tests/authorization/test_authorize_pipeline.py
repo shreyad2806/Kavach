@@ -14,6 +14,7 @@ from shield.gateway.models import (
     ActionRequest,
     AuthorizationDecision,
     CapabilityName,
+    CheckStatus,
     ReasonCode,
     ResourceName,
 )
@@ -76,9 +77,9 @@ def test_10_research_production_deployment_attack():
     assert result.decision == AuthorizationDecision.DENY
 
     # Check traceability
-    assert result.checks.identity is True
-    assert result.checks.provenance is True
-    assert result.checks.cedar is False
+    assert result.checks.identity == CheckStatus.PASS
+    assert result.checks.provenance == CheckStatus.PASS
+    assert result.checks.cedar == CheckStatus.DENY
 
     # Reason code must include POLICY_DENIED
     assert ReasonCode.POLICY_DENIED in result.reason_codes
@@ -103,11 +104,11 @@ def test_complete_pipeline_trace_valid():
     result = authorize(request)
 
     assert result.decision == AuthorizationDecision.ALLOW
-    assert result.checks.identity is True
-    assert result.checks.capability is True
-    assert result.checks.provenance is True
-    assert result.checks.cedar is True
-    assert result.checks.deterministic_rules is True
+    assert result.checks.identity == CheckStatus.PASS
+    assert result.checks.capability == CheckStatus.PASS
+    assert result.checks.provenance == CheckStatus.PASS
+    assert result.checks.cedar == CheckStatus.ALLOW
+    assert result.checks.deterministic_rules == CheckStatus.PASS
     assert result.reason_codes == []
     assert result.agent_state == SecurityState.ACTIVE
 

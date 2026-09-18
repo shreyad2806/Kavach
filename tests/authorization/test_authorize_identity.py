@@ -15,6 +15,7 @@ from shield.gateway.models import (
     AuthorizationDecision,
     AuthorizationResult,
     CapabilityName,
+    CheckStatus,
     ReasonCode,
     ResourceName,
 )
@@ -85,7 +86,7 @@ def test_2_unknown_agent_deny():
 
     assert result.decision == AuthorizationDecision.DENY
     assert ReasonCode.IDENTITY_FAILURE in result.reason_codes
-    assert result.checks.identity is False
+    assert result.checks.identity == CheckStatus.FAIL
     assert result.agent_state == SecurityState.TERMINATED
 
 
