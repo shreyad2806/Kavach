@@ -21,6 +21,7 @@ Security Invariant:
 """
 
 from shield.capabilities.service import CapabilityService
+from shield.detection import detect
 from shield.detection.signals import calculate_risk
 from shield.gateway.models import (
     ActionRequest,
@@ -153,49 +154,56 @@ def authorize(
         checks.cedar = CheckStatus.DENY
         decision = AuthorizationDecision.DENY
         reason_codes.append(ReasonCode.POLICY_DENIED)
-        return _build_result(request, decision, reason_codes, checks, agent_state)
+        # Cedar DENY short-circuits deterministic rules (remains NOT_EVALUATED)
+        # but proceeds to detection for signal enrichment and risk scoring
+    else:
+        checks.cedar = CheckStatus.ALLOW
 
-    checks.cedar = CheckStatus.ALLOW
+        # =========================================================================
+        # CHECK 6: Deterministic Security Rules
+        # =========================================================================
+        # Only evaluate after all previous mandatory checks pass.
+        # Minimal rules for Phase 10:
+        #   1. deployment.deploy requests must have been allowed by Cedar.
+        #   2. No quarantined agent can reach this point.
+        #   3. Never convert DENY -> ALLOW.
 
-    # =========================================================================
-    # CHECK 6: Deterministic Security Rules
-    # =========================================================================
-    # Only evaluate after all previous mandatory checks pass.
-    # Minimal rules for Phase 10:
-    #   1. deployment.deploy requests must have been allowed by Cedar.
-    #   2. No quarantined agent can reach this point.
-    #   3. Never convert DENY -> ALLOW.
+        rules_passed = True
 
-    rules_passed = True
+        # Rule: deployment.deploy must be Cedar-allowed
+        from shield.gateway.models import ActionName
+        if request.action == ActionName.DEPLOYMENT_DEPLOY:
+            if checks.cedar != CheckStatus.ALLOW:
+                rules_passed = False
 
-    # Rule: deployment.deploy must be Cedar-allowed
-    from shield.gateway.models import ActionName
-    if request.action == ActionName.DEPLOYMENT_DEPLOY:
-        if checks.cedar != CheckStatus.ALLOW:
+        # Rule: no quarantined agent reaches this point (defense-in-depth)
+        if agent_state in (SecurityState.QUARANTINED, SecurityState.TERMINATED):
             rules_passed = False
 
-    # Rule: no quarantined agent reaches this point (defense-in-depth)
-    if agent_state in (SecurityState.QUARANTINED, SecurityState.TERMINATED):
-        rules_passed = False
+        checks.deterministic_rules = CheckStatus.PASS if rules_passed else CheckStatus.BLOCK
 
-    checks.deterministic_rules = CheckStatus.PASS if rules_passed else CheckStatus.BLOCK
-
-    if not rules_passed:
-        decision = AuthorizationDecision.DENY
-        risk_score = calculate_risk(reason_codes)
-        return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        if not rules_passed:
+            decision = AuthorizationDecision.DENY
 
     # =========================================================================
     # CHECK 7: Detection (Phase 11)
     # =========================================================================
-    # Calculate risk score from reason codes using Phase 11 detection
+    # Evaluate detection signals and enrich reason codes with detection results
+    detection_result = detect(request)
+    for signal in detection_result.signals:
+        if signal.code not in reason_codes:
+            reason_codes.append(signal.code)
+
+    # Calculate deterministic aggregate risk score from all active reason codes
     risk_score = calculate_risk(reason_codes)
 
     # =========================================================================
     # FINAL DECISION
     # =========================================================================
-    # All checks passed — ALLOW
-    decision = AuthorizationDecision.ALLOW
+    # Fail-closed invariant: if any check resulted in DENY, it can NEVER become ALLOW.
+    # Detection only enriches security explanation and risk score.
+    if decision != AuthorizationDecision.DENY:
+        decision = AuthorizationDecision.ALLOW
 
     return _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
 

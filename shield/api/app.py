@@ -7,7 +7,7 @@ Exposes the Kavach authorization pipeline through HTTP endpoints.
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from shield.authorization.pipeline import authorize
@@ -19,7 +19,20 @@ from shield.gateway.models import (
     ResourceName,
 )
 from shield.identity.models import AgentId
+from shield.identity.service import IdentityService
 from shield.provenance.models import Provenance
+
+
+# ============================================================================
+# Application Service Dependencies
+# ============================================================================
+
+_default_identity_service = IdentityService()
+
+
+def get_identity_service() -> IdentityService:
+    """Dependency provider for IdentityService."""
+    return _default_identity_service
 
 
 # ============================================================================
@@ -92,7 +105,10 @@ async def health_check() -> HealthResponse:
 # ============================================================================
 
 @app.post("/authorize", response_model=AuthorizationResult)
-async def authorize_request(request: AuthorizeRequest) -> AuthorizationResult:
+async def authorize_request(
+    request: AuthorizeRequest,
+    identity_service: Annotated[IdentityService, Depends(get_identity_service)],
+) -> AuthorizationResult:
     """
     Authorize an action request.
     
@@ -108,7 +124,7 @@ async def authorize_request(request: AuthorizeRequest) -> AuthorizationResult:
         action_request = request.to_action_request()
         
         # Call Kavach authorization pipeline
-        decision = authorize(action_request)
+        decision = authorize(action_request, identity_service=identity_service)
         
         return decision
     except ValueError as e:
