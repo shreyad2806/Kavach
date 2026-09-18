@@ -41,6 +41,7 @@ from shield.provenance.validator import (
     ProvenanceValidationResult,
     validate_provenance,
 )
+from shield.incidents import INCIDENT_THRESHOLD, IncidentService
 from shield.telemetry import create_authorization_decision_event, write_event
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ def authorize(
     identity_service: IdentityService | None = None,
     capability_service: CapabilityService | None = None,
     cedar_adapter: CedarAdapter | None = None,
+    incident_service: IncidentService | None = None,
     audit_writer: Callable[..., Any] | None = None,
 ) -> AuthorizationResult:
     """
@@ -61,12 +63,14 @@ def authorize(
     contract with full check traceability.
     Every completed decision emits exactly one AUTHORIZATION_DECISION event
     to the audit sink.
+    If risk_score >= INCIDENT_THRESHOLD, an incident is created.
 
     Parameters:
         request: The ActionRequest to evaluate.
         identity_service: Service for agent identity lookup. Uses default if None.
         capability_service: Service for capability verification. Uses default if None.
         cedar_adapter: Adapter for Cedar policy evaluation. Uses default if None.
+        incident_service: Service for incident creation. Uses default if None.
         audit_writer: Optional custom audit writer callable. Uses write_event if None.
 
     Returns:
@@ -80,6 +84,8 @@ def authorize(
         capability_service = CapabilityService()
     if cedar_adapter is None:
         cedar_adapter = CedarAdapter()
+    if incident_service is None:
+        incident_service = IncidentService()
 
     # Initialize check tracking
     checks = AuthorizationChecks()
@@ -225,6 +231,7 @@ def authorize(
 
     result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
     _emit_telemetry(request, result, audit_writer)
+    _create_incident_if_needed(request, result, incident_service)
     return result
 
 
@@ -264,3 +271,21 @@ def _build_result(
         checks=checks,
         agent_state=agent_state,
     )
+
+
+def _create_incident_if_needed(
+    request: ActionRequest,
+    result: AuthorizationResult,
+    incident_service: IncidentService,
+) -> None:
+    """
+    Create an incident if risk_score >= INCIDENT_THRESHOLD.
+
+    Incident creation is a consequence of the decision, not an authorization mechanism.
+    Failures in incident creation MUST NOT alter or prevent the authorization verdict.
+    """
+    try:
+        if incident_service.should_create_incident(result):
+            incident_service.create(request.source_agent, result)
+    except Exception as exc:
+        logger.warning("Failed to create security incident: %s", exc)
