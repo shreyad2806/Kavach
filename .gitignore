@@ -227,3 +227,10 @@ node_modules/
 backend/node_modules/
 frontend/node_modules/
 sandbox/runtime/*.jsonl
+
+# Local environment files
+.env
+.env.*
+!.env.example
+frontend/.env.local
+backend/.env
