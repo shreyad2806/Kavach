@@ -30,7 +30,7 @@ from shield.gateway.models import (
 )
 from shield.identity.models import AgentId
 from shield.provenance.models import Provenance
-from shield.runtime.services import get_shield_runtime
+from shield.runtime.services import get_runtime as get_shield_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,26 @@ P1_TO_SHIELD_AGENT_ID: dict[str, AgentId] = {
 _SHIELD_TO_P1_AGENT_ID: dict[AgentId, str] = {
     v: k for k, v in P1_TO_SHIELD_AGENT_ID.items()
 }
+
+
+def configure_all_guards(runtime) -> None:
+    """
+    Wire all module-level KavachGuard instances in agent tool modules to the
+    shared ShieldRuntime. Must be called once at application startup before
+    any agent tool is invoked.
+
+    This ensures that quarantine/restore via the API immediately affects
+    all protected tool calls — they all share the same IdentityService.
+    """
+    import agents.coding.tools as _ct
+    import agents.deployment.tools as _dt
+    import agents.orchestrator.tools as _ot
+    import agents.research.tools as _rt
+    import agents.verification.tools as _vt
+
+    for module in (_ct, _dt, _ot, _rt, _vt):
+        if hasattr(module, "_guard"):
+            module._guard.configure_from_runtime(runtime)
 
 
 class KavachDeniedError(Exception):
@@ -103,8 +123,17 @@ class KavachGuard:
         self._capability_service = capability_service
         self._cedar_adapter = cedar_adapter
         self._incident_service = incident_service
+        self._configured_runtime = None
         # Track authorization calls for testing/telemetry
         self._authorization_calls: list[AuthorizationResult] = []
+
+    def configure_from_runtime(self, runtime) -> None:
+        """
+        Wire this guard to a ShieldRuntime's shared services.
+        Store the runtime reference rather than individual services so that
+        reset_shield_runtime() in tests is immediately visible.
+        """
+        self._configured_runtime = runtime
 
     @property
     def authorization_calls(self) -> list[AuthorizationResult]:
@@ -188,11 +217,14 @@ class KavachGuard:
             )
 
             runtime = get_shield_runtime()
+            # Explicit test injections take precedence; otherwise always
+            # resolve from the live singleton so reset_shield_runtime() is
+            # immediately visible (no stale cached service references).
             kwargs: dict[str, Any] = {
-                "identity_service": self._identity_service or runtime.identity_service,
-                "capability_service": self._capability_service or runtime.capability_service,
-                "cedar_adapter": self._cedar_adapter or runtime.cedar_adapter,
-                "incident_service": self._incident_service or runtime.incident_service,
+                "identity_service": self._identity_service if self._identity_service is not None else runtime.identity_service,
+                "capability_service": self._capability_service if self._capability_service is not None else runtime.capability_service,
+                "cedar_adapter": self._cedar_adapter if self._cedar_adapter is not None else runtime.cedar_adapter,
+                "incident_service": self._incident_service if self._incident_service is not None else runtime.incident_service,
             }
 
             result = authorize(request, **kwargs)

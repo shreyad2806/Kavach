@@ -108,3 +108,17 @@ class Workflow:
             "result": self.result,
             "error": self.error,
         }
+
+
+@dataclass
+class WorkflowSnapshot:
+    """Serializable snapshot of a Workflow for HTTP responses."""
+
+    workflow_id: str
+    task: str
+    status: WorkflowStatus
+    created_at: str | None
+    started_at: str | None
+    completed_at: str | None
+    error: str | None
+    steps_completed: list[str] = field(default_factory=list)

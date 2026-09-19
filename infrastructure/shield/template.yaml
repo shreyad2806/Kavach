@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Kavach Shield — Authorization gateway, identity registry, incident store
+
+Parameters:
+  LambdaImageUri:
+    Type: String
+    Description: ECR image URI for the Kavach API Lambda
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Environment:
+      Variables:
+        SHIELD_AGENTS_TABLE: !Ref AgentsTable
+        SHIELD_INCIDENTS_TABLE: !Ref IncidentsTable
+        KAVACH_AUDIT_LOG_PATH: /tmp/kavach/audit.log
+
+Resources:
+
+  # ------------------------------------------------------------------ #
+  # DynamoDB — Shield state tables
+  # ------------------------------------------------------------------ #
+  AgentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: agent_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: agent_id
+          KeyType: HASH
+
+  IncidentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: incident_id
+          AttributeType: S
+        - AttributeName: agent_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: incident_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: AgentIndex
+          KeySchema:
+            - AttributeName: agent_id
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # ------------------------------------------------------------------ #
+  # Lambda — Shield API (FastAPI via Mangum)
+  # ------------------------------------------------------------------ #
+  ShieldApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Ref LambdaImageUri
+      ImageConfig:
+        Command: ["api.lambda_handler.handler"]
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AgentsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IncidentsTable
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+        Authorize:
+          Type: Api
+          Properties:
+            Path: /authorize
+            Method: post
+        Agents:
+          Type: Api
+          Properties:
+            Path: /agents
+            Method: get
+        AgentById:
+          Type: Api
+          Properties:
+            Path: /agents/{agent_id}
+            Method: get
+        IsolateAgent:
+          Type: Api
+          Properties:
+            Path: /agents/{agent_id}/isolate
+            Method: post
+        RestoreAgent:
+          Type: Api
+          Properties:
+            Path: /agents/{agent_id}/restore
+            Method: post
+        Incidents:
+          Type: Api
+          Properties:
+            Path: /incidents
+            Method: get
+        IncidentById:
+          Type: Api
+          Properties:
+            Path: /incidents/{incident_id}
+            Method: get
+        ResolveIncident:
+          Type: Api
+          Properties:
+            Path: /incidents/{incident_id}/resolve
+            Method: patch
+        Events:
+          Type: Api
+          Properties:
+            Path: /events
+            Method: get
+        Policies:
+          Type: Api
+          Properties:
+            Path: /policies
+            Method: get
+        Dashboard:
+          Type: Api
+          Properties:
+            Path: /dashboard
+            Method: get
+        ArtifactScan:
+          Type: Api
+          Properties:
+            Path: /artifacts/scan
+            Method: post
+        ArtifactById:
+          Type: Api
+          Properties:
+            Path: /artifacts/{artifact_id}
+            Method: get
+
+  # ------------------------------------------------------------------ #
+  # CloudWatch Logs
+  # ------------------------------------------------------------------ #
+  ShieldApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /kavach/shield-api
+      RetentionInDays: 14
+
+Outputs:
+  ShieldApiUrl:
+    Description: Shield API Gateway endpoint
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+  AgentsTableName:
+    Value: !Ref AgentsTable
+  IncidentsTableName:
+    Value: !Ref IncidentsTable

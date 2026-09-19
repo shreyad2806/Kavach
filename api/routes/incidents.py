@@ -1,42 +1,42 @@
-"""Incident routes.
+from fastapi import APIRouter, Depends, HTTPException
 
-Projects the existing ``IncidentService`` (from the shared runtime) over HTTP.
-Incidents are created by the Kavach pipeline when a decision's risk_score
-crosses the threshold; this layer only reads them.  No database is added —
-incidents remain process-local at this stage, which is acceptable.
+from api.middleware.auth import require_api_key
+from shield.incidents.models import IncidentStatus
+from shield.runtime.services import get_runtime
 
-Frontend contract (CriticalIncidentPanel.jsx, IncidentHistoryModal.jsx):
-    incident_id, agent_id, severity, status, reason_codes, description, timestamp
-"""
-
-from fastapi import APIRouter, HTTPException
-
-from api.deps import get_incident_service
-
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
-def _serialize(incident) -> dict:
+def _fmt(i):
     return {
-        "incident_id": incident.incident_id,
-        "timestamp": incident.timestamp.isoformat(),
-        "agent_id": incident.agent_id.value,
-        "severity": incident.severity.value,
-        "status": incident.status.value,
-        "reason_codes": [code.value for code in incident.reason_codes],
-        "request_ids": list(incident.request_ids),
-        "description": incident.description,
+        "incident_id": i.incident_id,
+        "timestamp": i.timestamp.isoformat(),
+        "agent_id": i.agent_id.value,
+        "severity": i.severity.value,
+        "status": i.status.value,
+        "reason_codes": [r.value for r in i.reason_codes],
+        "request_ids": i.request_ids,
+        "description": i.description,
     }
 
 
-@router.get("")
-async def list_incidents() -> list[dict]:
-    return [_serialize(incident) for incident in get_incident_service().list_all()]
+@router.get("/")
+async def list_incidents():
+    return [_fmt(i) for i in get_runtime().incident_service.list_all()]
 
 
 @router.get("/{incident_id}")
-async def get_incident(incident_id: str) -> dict:
-    incident = get_incident_service().get(incident_id)
-    if incident is None:
+async def get_incident(incident_id: str):
+    incident = get_runtime().incident_service.get(incident_id)
+    if not incident:
         raise HTTPException(status_code=404, detail=f"Incident '{incident_id}' not found")
-    return _serialize(incident)
+    return _fmt(incident)
+
+
+@router.patch("/{incident_id}/resolve")
+async def resolve_incident(incident_id: str):
+    try:
+        get_runtime().incident_service.update_status(incident_id, IncidentStatus.RESOLVED)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Incident '{incident_id}' not found")
+    return {"incident_id": incident_id, "status": IncidentStatus.RESOLVED.value}

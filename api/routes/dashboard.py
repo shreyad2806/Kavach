@@ -1,66 +1,45 @@
-"""Read-only dashboard projection.
+import json
 
-Every number here is derived from real backend state — nothing is invented:
-  * agents     -> shared runtime IdentityService (the five Shield identities)
-  * workflows  -> the process-wide WorkflowSupervisor registry
-  * incidents  -> shared runtime IncidentService
-  * events     -> the Shield authorization audit sink (ALLOW/DENY counts)
+from fastapi import APIRouter, Depends
 
-No security metrics are fabricated; if a source has no data the count is 0.
-"""
+from api.middleware.auth import require_api_key
+from shield.runtime.services import get_runtime
+from shield.telemetry.events import get_audit_log_path
 
-from fastapi import APIRouter
-
-from agents.supervisor.models import WorkflowStatus
-from api.deps import get_identity_service, get_incident_service, get_supervisor
-from api.routes.events import _read_authorization_events
-from shield.identity.models import SecurityState
-
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
-@router.get("")
-async def dashboard() -> dict:
-    identities = get_identity_service().list_agents()
-    agent_counts = {state.value: 0 for state in SecurityState}
-    for identity in identities:
-        agent_counts[identity.state.value] += 1
+@router.get("/")
+async def dashboard():
+    rt = get_runtime()
+    agents = rt.identity_service.list_agents()
+    agent_states: dict[str, int] = {}
+    for a in agents:
+        agent_states[a.state.value] = agent_states.get(a.state.value, 0) + 1
 
-    workflow_counts = {status.value: 0 for status in WorkflowStatus}
-    for workflow in get_supervisor().list_workflows():
-        workflow_counts[workflow.status.value] += 1
+    incidents = rt.incident_service.list_all()
+    open_count = sum(1 for i in incidents if i.status.value == "OPEN")
 
-    incidents = get_incident_service().list_all()
-    open_incidents = sum(1 for incident in incidents if incident.status.value == "OPEN")
+    recent_events = []
+    path = get_audit_log_path()
+    if path.exists():
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                recent_events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+            if len(recent_events) >= 20:
+                break
 
-    events = _read_authorization_events()
-    allow_count = sum(1 for event in events if event.get("policy_decision") == "ALLOW")
-    deny_count = sum(1 for event in events if event.get("policy_decision") == "DENY")
+    deny_count  = sum(1 for e in recent_events if e.get("policy_decision") == "DENY")
+    allow_count = sum(1 for e in recent_events if e.get("policy_decision") == "ALLOW")
 
     return {
-        "agents": {
-            "total": len(identities),
-            "active": agent_counts[SecurityState.ACTIVE.value],
-            "quarantined": agent_counts[SecurityState.QUARANTINED.value],
-            "suspicious": agent_counts[SecurityState.SUSPICIOUS.value],
-            "terminated": agent_counts[SecurityState.TERMINATED.value],
-        },
-        "workflows": {
-            "total": sum(workflow_counts.values()),
-            "created": workflow_counts[WorkflowStatus.CREATED.value],
-            "running": workflow_counts[WorkflowStatus.RUNNING.value]
-            + workflow_counts[WorkflowStatus.STOPPING.value],
-            "completed": workflow_counts[WorkflowStatus.COMPLETED.value],
-            "failed": workflow_counts[WorkflowStatus.FAILED.value],
-            "stopped": workflow_counts[WorkflowStatus.STOPPED.value],
-        },
-        "incidents": {
-            "total": len(incidents),
-            "open": open_incidents,
-        },
-        "events": {
-            "total": len(events),
-            "allow": allow_count,
-            "deny": deny_count,
-        },
+        "agents":        {"total": len(agents), "by_state": agent_states},
+        "incidents":     {"total": len(incidents), "open": open_count},
+        "recent_events": {"total": len(recent_events), "deny": deny_count, "allow": allow_count},
     }

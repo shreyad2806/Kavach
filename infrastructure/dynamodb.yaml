@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Kavach — all DynamoDB tables (reference / standalone deployment)
+
+# Scanner tables are also defined in infrastructure/scanner/template.yaml.
+# Shield tables are also defined in infrastructure/shield/template.yaml.
+# Use this template only if you want to pre-create tables independently.
+
+Resources:
+
+  # Scanner tables
+  ArtifactsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kavach-artifacts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: artifact_id
+          AttributeType: S
+        - AttributeName: source_url
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: artifact_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: SourceUrlIndex
+          KeySchema:
+            - AttributeName: source_url
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  FindingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kavach-findings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: artifact_id
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: artifact_id
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+
+  VerdictsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kavach-verdicts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: artifact_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: artifact_id
+          KeyType: HASH
+
+  SandboxResultsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kavach-sandbox-results
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: artifact_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: artifact_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # Shield tables
+  AgentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kavach-shield-agents
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: agent_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: agent_id
+          KeyType: HASH
+
+  IncidentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kavach-shield-incidents
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: incident_id
+          AttributeType: S
+        - AttributeName: agent_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: incident_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: AgentIndex
+          KeySchema:
+            - AttributeName: agent_id
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL

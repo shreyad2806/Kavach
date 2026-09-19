@@ -1,0 +1,13 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "kavach"
+resolve_s3 = true
+s3_prefix = "kavach"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "SandboxImageUri=\"935118465027.dkr.ecr.ap-south-1.amazonaws.com/kavach-sandbox:latest\" LambdaImageUri=\"935118465027.dkr.ecr.ap-south-1.amazonaws.com/kavach-scanner:latest\" PrivateSubnetId=\"subnet-0a31fcebefb923848\" SandboxSecurityGroupId=\"sg-0b4ca01c7ae6b7822\""
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-south-1"

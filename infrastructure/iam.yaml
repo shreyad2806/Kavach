@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Kavach — IAM roles reference (scanner and shield least-privilege roles)
+
+# Scanner IAM roles are created inline in infrastructure/scanner/template.yaml.
+# This template documents them for audit purposes and can be used to create
+# standalone roles if needed.
+
+Parameters:
+  ArtifactBucketArn:
+    Type: String
+  SandboxResultsTableArn:
+    Type: String
+  ShieldAgentsTableArn:
+    Type: String
+  ShieldIncidentsTableArn:
+    Type: String
+
+Resources:
+
+  # Fargate sandbox task role — minimal permissions
+  SandboxTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kavach-sandbox-task-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SandboxMinimal
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${ArtifactBucketArn}/quarantine/*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                Resource: !Ref SandboxResultsTableArn
+
+  # Shield API Lambda role
+  ShieldApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kavach-shield-api-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ShieldDynamoDB
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource:
+                  - !Ref ShieldAgentsTableArn
+                  - !Ref ShieldIncidentsTableArn
+                  - !Sub "${ShieldIncidentsTableArn}/index/*"

@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Kavach — root stack. Deploys Scanner and Shield as nested stacks.
+
+Parameters:
+  LambdaImageUri:
+    Type: String
+    Description: ECR image URI for the Kavach Lambda (scanner + API)
+  SandboxImageUri:
+    Type: String
+    Description: ECR image URI for the Fargate sandbox container
+  PrivateSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet for Fargate sandbox (no internet route)
+  SandboxSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group with zero outbound rules for sandbox
+
+Resources:
+
+  ScannerStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: scanner/template.yaml
+      Parameters:
+        LambdaImageUri: !Ref LambdaImageUri
+        SandboxImageUri: !Ref SandboxImageUri
+        PrivateSubnetId: !Ref PrivateSubnetId
+        SandboxSecurityGroupId: !Ref SandboxSecurityGroupId
+
+  ShieldStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: shield/template.yaml
+      Parameters:
+        LambdaImageUri: !Ref LambdaImageUri
+
+Outputs:
+  ScannerApiUrl:
+    Value: !GetAtt ScannerStack.Outputs.ScannerApiUrl
+    Description: Scanner API endpoint
+  ShieldApiUrl:
+    Value: !GetAtt ShieldStack.Outputs.ShieldApiUrl
+    Description: Shield API endpoint

@@ -1,49 +1,27 @@
-"""Read-only Cedar policy projection.
+from pathlib import Path
 
-Exposes the ACTUAL Cedar policy set loaded by the Shield CedarAdapter.  This is
-strictly read-only — policy mutation is intentionally NOT implemented (the
-frontend has no policy-write contract and the task forbids mutation).
+from fastapi import APIRouter, Depends, HTTPException
 
-The rules are parsed straight from the same ``policies.cedar`` file the engine
-authorizes against, so the response can never drift from enforced policy.
-"""
-
-import re
-
-from fastapi import APIRouter
-
+from api.middleware.auth import require_api_key
+from shield.capabilities.registry import ACTION_CAPABILITY_MAP
 from shield.policy.cedar.engine import _POLICIES_PATH
 
-router = APIRouter()
-
-_POLICY_RE = re.compile(
-    r"(?P<effect>permit|forbid)\s*\(\s*"
-    r"principal\s*==\s*Agent::\"(?P<principal>[^\"]+)\"\s*,\s*"
-    r"action\s*==\s*Action::\"(?P<action>[^\"]+)\"\s*,\s*"
-    r"resource\s*==\s*Resource::\"(?P<resource>[^\"]+)\"",
-    re.MULTILINE,
-)
+router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
-def _parse_policies(source: str) -> list[dict]:
-    return [
-        {
-            "effect": match.group("effect"),
-            "principal": match.group("principal"),
-            "action": match.group("action"),
-            "resource": match.group("resource"),
-        }
-        for match in _POLICY_RE.finditer(source)
-    ]
+@router.get("/")
+async def list_policies():
+    """Return the Cedar policy set and the action→capability map."""
+    cedar_text = ""
+    if _POLICIES_PATH.exists():
+        cedar_text = _POLICIES_PATH.read_text(encoding="utf-8")
 
+    capability_map = {
+        action.value: capability.value
+        for action, capability in ACTION_CAPABILITY_MAP.items()
+    }
 
-@router.get("")
-async def list_policies() -> dict:
-    source = _POLICIES_PATH.read_text(encoding="utf-8")
-    policies = _parse_policies(source)
     return {
-        "engine": "cedar",
-        "mutable": False,
-        "count": len(policies),
-        "policies": policies,
+        "cedar_policies": cedar_text,
+        "action_capability_map": capability_map,
     }

@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Kavach — EventBridge rules for scheduled and event-driven triggers
+
+Parameters:
+  AuditArchiveStateMachineArn:
+    Type: String
+    Description: ARN of the kavach-audit-archive Step Functions state machine
+  ScannerStateMachineArn:
+    Type: String
+    Description: ARN of the scanner pipeline Step Functions state machine (for monitoring)
+
+Resources:
+
+  # ------------------------------------------------------------------ #
+  # Scheduler role — allows EventBridge to start Step Functions
+  # ------------------------------------------------------------------ #
+  EventBridgeSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kavach-eventbridge-scheduler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartStateMachines
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource:
+                  - !Ref AuditArchiveStateMachineArn
+
+  # ------------------------------------------------------------------ #
+  # Daily audit log archive — runs at 02:00 UTC every day
+  # ------------------------------------------------------------------ #
+  DailyAuditArchiveRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: kavach-daily-audit-archive
+      Description: Archive Shield audit log to S3 every day at 02:00 UTC
+      ScheduleExpression: "cron(0 2 * * ? *)"
+      State: ENABLED
+      Targets:
+        - Id: AuditArchiveTarget
+          Arn: !Ref AuditArchiveStateMachineArn
+          RoleArn: !GetAtt EventBridgeSchedulerRole.Arn
+
+  # ------------------------------------------------------------------ #
+  # Scanner pipeline failure alert — fires when a scan execution fails
+  # ------------------------------------------------------------------ #
+  ScannerFailureRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: kavach-scanner-pipeline-failure
+      Description: Fires when the scanner Step Functions execution reaches FAILED state
+      EventPattern:
+        source:
+          - aws.states
+        detail-type:
+          - Step Functions Execution Status Change
+        detail:
+          stateMachineArn:
+            - !Ref ScannerStateMachineArn
+          status:
+            - FAILED
+            - TIMED_OUT
+            - ABORTED
+      State: ENABLED
+      Targets:
+        - Id: ScannerFailureLog
+          Arn: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/kavach/scanner-failures"
+
+  ScannerFailureLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /kavach/scanner-failures
+      RetentionInDays: 30
+
+Outputs:
+  DailyAuditArchiveRuleArn:
+    Value: !GetAtt DailyAuditArchiveRule.Arn
+  ScannerFailureRuleArn:
+    Value: !GetAtt ScannerFailureRule.Arn

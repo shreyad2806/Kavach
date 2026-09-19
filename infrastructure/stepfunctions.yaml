@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Kavach — Shield audit log archival Step Functions state machine
+
+# This state machine is triggered by EventBridge on a schedule to archive
+# the Shield audit log from Lambda /tmp to S3 for long-term retention.
+# The scanner pipeline Step Functions definition lives in infrastructure/scanner/stepfunctions.json.
+
+Parameters:
+  AuditBucketName:
+    Type: String
+    Description: S3 bucket for long-term audit log storage
+  ShieldApiFunctionArn:
+    Type: String
+    Description: ARN of the Shield API Lambda function
+
+Resources:
+
+  AuditArchiveStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: kavach-audit-archive
+      RoleArn: !GetAtt AuditArchiveRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Archive Shield audit log to S3",
+          "StartAt": "ExportAuditLog",
+          "States": {
+            "ExportAuditLog": {
+              "Type": "Task",
+              "Resource": "${ShieldApiFunctionArn}",
+              "Parameters": {
+                "action": "export_audit_log",
+                "bucket": "${AuditBucketName}"
+              },
+              "End": true
+            }
+          }
+        }
+
+  AuditArchiveRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Ref ShieldApiFunctionArn
+
+  ScheduledArchive:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: kavach-daily-audit-archive
+      ScheduleExpression: "cron(0 2 * * ? *)"
+      State: ENABLED
+      Targets:
+        - Id: AuditArchive
+          Arn: !Ref AuditArchiveStateMachine
+          RoleArn: !GetAtt SchedulerRole.Arn
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartStateMachine
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !Ref AuditArchiveStateMachine

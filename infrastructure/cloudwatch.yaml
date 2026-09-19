@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Kavach — CloudWatch log groups and alarms (standalone reference template)
+
+# This file documents the CloudWatch resources created by the scanner and shield
+# SAM templates. Use it as a reference or import into a monitoring stack.
+#
+# Scanner log groups:   /kavach/sandbox  (7-day retention, in scanner/template.yaml)
+# Shield log groups:    /kavach/shield-api (14-day retention, in shield/template.yaml)
+#
+# To add alarms, deploy this template with the log group names as parameters.
+
+Parameters:
+  ScannerLogGroup:
+    Type: String
+    Default: /kavach/sandbox
+  ShieldLogGroup:
+    Type: String
+    Default: /kavach/shield-api
+  AlarmEmail:
+    Type: String
+    Default: ""
+
+Resources:
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: kavach-alarms
+
+  ScannerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: kavach-scanner-errors
+      AlarmDescription: Scanner Lambda error rate > 5 in 5 minutes
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  ShieldDenyRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: kavach-shield-high-deny-rate
+      AlarmDescription: Shield Lambda error rate > 10 in 5 minutes
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref AlarmTopic
