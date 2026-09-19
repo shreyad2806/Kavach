@@ -26,8 +26,19 @@ class CodingTools:
 
     @_guard.protect("coding", ActionName.CODING_READ, ResourceName.WORKSPACE, CapabilityName.CODING_READ)
     def read_file(self, filename: str) -> str:
-        """Read a file from the Coding workspace."""
-        return self.workspace.read_text(filename)
+        """Read a file from the Coding workspace.
+
+        An artifact that has not been written yet reads as empty content: the
+        coding agent inspects the current artifact *before* rewriting it, and on
+        a fresh workspace there is simply nothing to inspect yet.  Path
+        containment is still enforced by SafeWorkspace on every read — a
+        traversal attempt (WorkspaceAccessDeniedError) or a non-file target
+        (ValueError) still fails closed.
+        """
+        try:
+            return self.workspace.read_text(filename)
+        except FileNotFoundError:
+            return ""
 
     @_guard.protect("coding", ActionName.CODING_WRITE, ResourceName.WORKSPACE, CapabilityName.CODING_WRITE)
     def write_file(

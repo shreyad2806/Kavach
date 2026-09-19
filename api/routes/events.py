@@ -1,28 +1,23 @@
-import json
+"""Authorization event stream.
+
+Returns the CURRENT session's authorization events — the decisions produced by
+KavachGuard / authorize() since this process started (or since the demo session
+was reset).
+
+The append-only JSONL audit file remains the permanent record; this endpoint is
+the live projection the dashboard consumes, so a fresh session never shows
+historical decisions.  Nothing here is synthesised: every record came from
+``shield.telemetry.write_event``.
+"""
 
 from fastapi import APIRouter, Depends, Query
 
 from api.middleware.auth import require_api_key
-from shield.telemetry.events import get_audit_log_path
+from shield.telemetry.session import list_events as _list_session_events
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
 @router.get("/")
 async def list_events(limit: int = Query(default=100, le=500)):
-    path = get_audit_log_path()
-    if not path.exists():
-        return []
-    lines = path.read_text(encoding="utf-8").splitlines()
-    events = []
-    for line in reversed(lines):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            events.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-        if len(events) >= limit:
-            break
-    return events
+    return _list_session_events(limit=limit)

@@ -2,6 +2,16 @@ import { Panel } from "../ui/Panel.jsx";
 import { Badge } from "../ui/index.jsx";
 import { stateTone, riskColor } from "../lib/format.js";
 
+// The identity registry is the source of truth for IDs and states; roles are
+// presentational labels only.
+const AGENT_ROLES = {
+  "orchestrator-01": "coordinator",
+  "research-01":     "researcher",
+  "coding-01":       "developer",
+  "deployment-01":   "deployer",
+  "verification-01": "verifier",
+};
+
 const STATE_DOT = {
   ACTIVE:      { color: "#1fe98a", pulse: true },
   QUARANTINED: { color: "#ff4d5e", pulse: true },
@@ -43,7 +53,9 @@ export function FleetList({ agents = [], selectedId, onSelect }) {
                 {/* Agent ID + role */}
                 <div className="flex-1 min-w-0">
                   <div className="text-[12.5px] font-mono text-ink truncate">{agent.agent_id}</div>
-                  <div className="text-[11px] text-ink3 capitalize">{agent.role}</div>
+                  <div className="text-[11px] text-ink3 capitalize">
+                    {agent.role ?? AGENT_ROLES[agent.agent_id] ?? "agent"}
+                  </div>
                 </div>
 
                 {/* State badge */}

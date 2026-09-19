@@ -124,11 +124,12 @@ def test_full_legitimate_workflow():
     # 1. Orchestrator delegates research
     orch.delegate("research", {"task": "search fibonacci"})
 
-    # 2. Research searches
+    # 2. Research searches (research-01 is read-only by design: research.write
+    #    is not granted, so it is denied with CAPABILITY_MISMATCH — see
+    #    test_write_research_denied_by_capability_registry).
     res.search("fibonacci")
 
-    # 3. Research writes and sends result
-    res.write_research("fib.txt", "Fibonacci research")
+    # 3. Research sends its result
     res.send_result("orchestrator", {"status": "DONE"})
 
     # 4. Orchestrator delegates coding
@@ -156,14 +157,29 @@ def test_full_legitimate_workflow():
 # ============================================================================
 
 def test_write_research_protected():
-    """research.write_research is now protected by KavachGuard."""
+    """research.write_research is enforced by KavachGuard."""
     bus = MessageBus()
     tools = __import__("agents.research.tools", fromlist=["ResearchTools"]).ResearchTools(bus)
-    # write_research now has KavachGuard
+    # write_research is a protected operation
     assert hasattr(tools.write_research, "_kavach_guard")
-    # Legitimate write still works
-    result = tools.write_research("test.txt", "content")
-    assert result is not None
+
+
+def test_write_research_denied_by_capability_registry():
+    """research-01 has no research.write capability -> DENY before Cedar runs."""
+    bus = MessageBus()
+    tools = __import__("agents.research.tools", fromlist=["ResearchTools"]).ResearchTools(bus)
+
+    filename = "denied-write-probe.txt"
+    target = tools.workspace.base_dir / filename
+    assert not target.exists(), "probe file must start absent"
+
+    with pytest.raises(KavachDeniedError) as denial:
+        tools.write_research(filename, "content")
+
+    assert denial.value.result.decision == AuthorizationDecision.DENY
+    assert [rc.value for rc in denial.value.result.reason_codes] == ["CAPABILITY_MISMATCH"]
+    # The side effect never happened.
+    assert not target.exists()
 
 
 def test_deployment_status_unprotected():

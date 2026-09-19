@@ -1,45 +1,74 @@
-import json
+"""Dashboard — a read-only projection of authoritative state.
+
+Every number here is derived from a real owner:
+
+  agents    → ShieldRuntime.identity_service
+  workflows → WorkflowSupervisor
+  incidents → ShieldRuntime.incident_service
+  events    → the current session's authorization events
+
+No metric is incremented, estimated, or back-filled from the audit log.
+"""
 
 from fastapi import APIRouter, Depends
 
+from api.deps import get_supervisor
 from api.middleware.auth import require_api_key
 from shield.runtime.services import get_runtime
-from shield.telemetry.events import get_audit_log_path
+from shield.telemetry.session import counts as session_counts
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
 @router.get("/")
 async def dashboard():
-    rt = get_runtime()
-    agents = rt.identity_service.list_agents()
-    agent_states: dict[str, int] = {}
-    for a in agents:
-        agent_states[a.state.value] = agent_states.get(a.state.value, 0) + 1
+    runtime = get_runtime()
 
-    incidents = rt.incident_service.list_all()
-    open_count = sum(1 for i in incidents if i.status.value == "OPEN")
+    agents = runtime.identity_service.list_agents()
+    agents_by_state: dict[str, int] = {}
+    for agent in agents:
+        agents_by_state[agent.state.value] = agents_by_state.get(agent.state.value, 0) + 1
 
-    recent_events = []
-    path = get_audit_log_path()
-    if path.exists():
-        lines = path.read_text(encoding="utf-8").splitlines()
-        for line in reversed(lines):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                recent_events.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-            if len(recent_events) >= 20:
-                break
+    workflows = get_supervisor().list_workflows()
+    workflows_by_status: dict[str, int] = {}
+    for workflow in workflows:
+        workflows_by_status[workflow.status.value] = (
+            workflows_by_status.get(workflow.status.value, 0) + 1
+        )
 
-    deny_count  = sum(1 for e in recent_events if e.get("policy_decision") == "DENY")
-    allow_count = sum(1 for e in recent_events if e.get("policy_decision") == "ALLOW")
+    incidents = runtime.incident_service.list_all()
+    incidents_by_status: dict[str, int] = {}
+    for incident in incidents:
+        incidents_by_status[incident.status.value] = (
+            incidents_by_status.get(incident.status.value, 0) + 1
+        )
+
+    events = session_counts()
 
     return {
-        "agents":        {"total": len(agents), "by_state": agent_states},
-        "incidents":     {"total": len(incidents), "open": open_count},
-        "recent_events": {"total": len(recent_events), "deny": deny_count, "allow": allow_count},
+        "agents": {
+            "total": len(agents),
+            "active": agents_by_state.get("ACTIVE", 0),
+            "quarantined": agents_by_state.get("QUARANTINED", 0),
+            "by_state": agents_by_state,
+        },
+        "workflows": {
+            "total": len(workflows),
+            "created": workflows_by_status.get("CREATED", 0),
+            "running": workflows_by_status.get("RUNNING", 0),
+            "completed": workflows_by_status.get("COMPLETED", 0),
+            "failed": workflows_by_status.get("FAILED", 0),
+            "stopped": workflows_by_status.get("STOPPED", 0),
+            "by_status": workflows_by_status,
+        },
+        "incidents": {
+            "total": len(incidents),
+            "open": incidents_by_status.get("OPEN", 0),
+            "by_status": incidents_by_status,
+        },
+        "events": {
+            "total": events["total"],
+            "allow": events["ALLOW"],
+            "deny": events["DENY"],
+        },
     }

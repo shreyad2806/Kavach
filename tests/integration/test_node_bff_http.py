@@ -12,7 +12,11 @@ Run locally:
     # Terminal 3: pytest tests/integration/test_node_bff_http.py -v
 """
 
+import time
+
 import pytest
+
+TERMINAL = ("COMPLETED", "FAILED", "STOPPED")
 
 # ---------------------------------------------------------------------------
 # Availability guards — skip the entire module if the servers are not up
@@ -61,6 +65,29 @@ def _auth(client, extra_headers: dict | None = None) -> dict:
     if extra_headers:
         h.update(extra_headers)
     return h
+
+
+def _wait_for_terminal(client, wf_id, headers, timeout=30.0):
+    """Poll the workflow through Node until it settles (as the UI does).
+
+    POST .../start returns immediately with RUNNING; the phases continue in the
+    backend on a worker thread.
+    """
+    deadline = time.time() + timeout
+    snap = client.get(f"/api/workflows/{wf_id}", headers=headers).json()
+    while snap["status"] not in TERMINAL:
+        if time.time() > deadline:
+            raise AssertionError(f"workflow {wf_id} did not settle (last {snap['status']})")
+        time.sleep(0.05)
+        snap = client.get(f"/api/workflows/{wf_id}", headers=headers).json()
+    return snap
+
+
+def _start_and_wait(client, wf_id, headers, timeout=30.0):
+    """Start a workflow through Node and wait for its terminal snapshot."""
+    started = client.post(f"/api/workflows/{wf_id}/start", headers=headers)
+    assert started.status_code == 200
+    return _wait_for_terminal(client, wf_id, headers, timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +193,9 @@ def test_node_workflow_lifecycle(client):
     # Start
     started = client.post(f"/api/workflows/{wf_id}/start", headers=headers)
     assert started.status_code == 200
-    body = started.json()
+    # Start returns immediately with RUNNING, then the caller polls.
+    assert started.json()["status"] == "RUNNING"
+    body = _wait_for_terminal(client, wf_id, headers)
     assert body["status"] == "COMPLETED"
     assert body["result"]["coding"]
     assert body["result"]["deployment"]
@@ -188,21 +217,25 @@ def test_node_workflow_lifecycle(client):
 def test_node_quarantine_blocks_real_p1_operation(client):
     headers = _auth(client)
 
+    # These tests run against ONE live backend that an operator or another test
+    # may have left with a quarantined agent, so start from a clean demo session.
+    assert client.post("/api/workflows/demo/reset", headers=headers).status_code == 200
+
     # Verify baseline works
     baseline_id = client.post("/api/workflows", json={"task": "node baseline"}, headers=headers).json()["workflow_id"]
-    assert client.post(f"/api/workflows/{baseline_id}/start", headers=headers).json()["status"] == "COMPLETED"
+    assert _start_and_wait(client, baseline_id, headers)["status"] == "COMPLETED"
 
-    # Quarantine research-01 through Node
-    iso = client.post("/api/agents/research-01/isolate", headers=headers)
+    # Quarantine a workflow participant through Node
+    iso = client.post("/api/agents/coding-01/isolate", headers=headers)
     assert iso.status_code == 200
     assert iso.json()["state"] == "QUARANTINED"
 
     # GET confirms quarantine
-    assert client.get("/api/agents/research-01", headers=headers).json()["state"] == "QUARANTINED"
+    assert client.get("/api/agents/coding-01", headers=headers).json()["state"] == "QUARANTINED"
 
     # A workflow must fail with KavachGuard DENY
     atk_id = client.post("/api/workflows", json={"task": "malicious via node"}, headers=headers).json()["workflow_id"]
-    result = client.post(f"/api/workflows/{atk_id}/start", headers=headers).json()
+    result = _start_and_wait(client, atk_id, headers)
     assert result["status"] == "FAILED"
     assert result["result"]["kavach_denied"] is True
     assert result["result"]["decision"] == "DENY"
@@ -211,18 +244,18 @@ def test_node_quarantine_blocks_real_p1_operation(client):
 
     # Other agents remain operational
     states = {a["agent_id"]: a["state"] for a in client.get("/api/agents", headers=headers).json()}
-    assert states["research-01"] == "QUARANTINED"
-    for other in ("orchestrator-01", "coding-01", "deployment-01", "verification-01"):
+    assert states["coding-01"] == "QUARANTINED"
+    for other in ("orchestrator-01", "research-01", "deployment-01", "verification-01"):
         assert states[other] == "ACTIVE"
 
     # Restore through Node
-    rest = client.post("/api/agents/research-01/restore", headers=headers)
+    rest = client.post("/api/agents/coding-01/restore", headers=headers)
     assert rest.status_code == 200
     assert rest.json()["state"] == "ACTIVE"
 
     # Legitimate workflow works again
     legit_id = client.post("/api/workflows", json={"task": "legit after node restore"}, headers=headers).json()["workflow_id"]
-    assert client.post(f"/api/workflows/{legit_id}/start", headers=headers).json()["status"] == "COMPLETED"
+    assert _start_and_wait(client, legit_id, headers)["status"] == "COMPLETED"
 
 
 # ---------------------------------------------------------------------------

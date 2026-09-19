@@ -327,22 +327,36 @@ def test_workflow_via_http_uses_real_enforcement(client):
     """
     Proves: POST /workflows + POST /workflows/{id}/start goes through
     the real KavachGuard enforcement path, not a bypass.
-    """
-    # Quarantine research via API
-    client.post("/agents/research-01/isolate")
 
-    # Create and start a workflow — it will fail at research.search
-    r = client.post("/workflows", json={"task": "Fibonacci"})
+    The canonical workflow runs orchestrator -> coding -> verification ->
+    deployment, so quarantining coding-01 must break it at the first protected
+    coding operation.
+    """
+    # Quarantine a participating agent via API
+    client.post("/agents/coding-01/isolate")
+
+    # Create and start a workflow — it will fail at the first coding operation
+    r = client.post("/workflows", json={"task": "Compute 12 * 7 + 5"})
     wf_id = r.json()["workflow_id"]
 
     r2 = client.post(f"/workflows/{wf_id}/start")
     assert r2.status_code == 200
     data = r2.json()
-    # Workflow must FAIL because research is quarantined
+    # Workflow must FAIL because coding-01 is quarantined
     assert data["status"] == "FAILED"
     assert data["error"] is not None
     # The error must mention the denial
     assert "AGENT_QUARANTINED" in data["error"] or "denied" in data["error"].lower() or "Kavach" in data["error"]
+
+
+def test_workflow_via_http_completes_when_all_agents_active(client):
+    """The same canonical workflow COMPLETES when nothing is quarantined."""
+    r = client.post("/workflows", json={"task": "Calculate 12 * 7 + 5 and verify the result."})
+    wf_id = r.json()["workflow_id"]
+
+    data = client.post(f"/workflows/{wf_id}/start").json()
+    assert data["status"] == "COMPLETED"
+    assert len(data["steps_completed"]) == 4  # orchestrator, coding, verification, deployment
 
 
 def test_unknown_agent_404(client):

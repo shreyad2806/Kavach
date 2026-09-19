@@ -71,7 +71,9 @@ def test_create_workflow_rejects_empty_task(p1_runtime):
 
 def test_start_workflow_runs_to_completion(p1_runtime):
     supervisor = WorkflowSupervisor()
-    workflow_id = supervisor.create_workflow("Research a simple Fibonacci algorithm.")
+    workflow_id = supervisor.create_workflow(
+        "Calculate 12 * 7 + 5 and verify the result."
+    )
 
     workflow = supervisor.start_workflow(workflow_id)
 
@@ -81,14 +83,12 @@ def test_start_workflow_runs_to_completion(p1_runtime):
     assert workflow.error is None
 
     # Canonical phases executed in order through the real P1 path.
+    # The canonical workflow is arithmetic and does NOT involve research.
     phase_agents = [phase.agent for phase in workflow.phases]
     assert phase_agents == [
         "orchestrator",
-        "research",
-        "orchestrator",
         "coding",
         "verification",
-        "orchestrator",
         "deployment",
     ]
     assert all(
@@ -100,7 +100,10 @@ def test_start_workflow_runs_to_completion(p1_runtime):
     assert workflow.result["coding"]["status"] == "PASSED"
     assert workflow.result["verification"]["status"] == "PASSED"
     assert workflow.result["deployment"]["status"] == "SUCCESS"
-    assert workflow.result["messages_received"] >= 3
+    assert workflow.result["expression"] == "12 * 7 + 5"
+    assert workflow.result["value"] == 89
+    # verification + deployment report back to the orchestrator
+    assert workflow.result["messages_received"] == 2
 
     # All agents remain ACTIVE — supervisor created no security side effects.
     for agent_id in (
@@ -185,20 +188,20 @@ def test_cooperative_stop_during_execution(p1_runtime, monkeypatch):
     supervisor = WorkflowSupervisor()
     workflow_id = supervisor.create_workflow("stop me mid-flight")
 
-    real_research_agent = ResearchAgent
+    real_coding_agent = CodingAgent
 
-    class StoppingResearchAgent(real_research_agent):
-        """Requests a cooperative stop from inside the research phase."""
+    class StoppingCodingAgent(real_coding_agent):
+        """Requests a cooperative stop from inside the coding phase."""
 
         def __init__(self, bus):
             super().__init__(bus)
 
-        def search(self, query):
+        def write_file(self, filename, content):
             supervisor.stop_workflow(workflow_id)
-            return super().search(query)
+            return super().write_file(filename, content)
 
     monkeypatch.setattr(
-        "agents.supervisor.service.ResearchAgent", StoppingResearchAgent
+        "agents.supervisor.service.CodingAgent", StoppingCodingAgent
     )
 
     workflow = supervisor.start_workflow(workflow_id)
@@ -208,11 +211,11 @@ def test_cooperative_stop_during_execution(p1_runtime, monkeypatch):
     event_types = [event.event_type.value for event in workflow.events]
     assert "WORKFLOW_STOP_REQUESTED" in event_types
     assert event_types[-1] == "WORKFLOW_STOPPED"
-    # Later phases never started.
+    # The in-flight coding phase finishes; later phases never start.
     phase_agents = [phase.agent for phase in workflow.phases]
-    assert "coding" not in phase_agents
-    assert "deployment" not in phase_agents
+    assert "coding" in phase_agents
     assert "verification" not in phase_agents
+    assert "deployment" not in phase_agents
     assert workflow.current_agent is None
 
 
@@ -224,34 +227,37 @@ def test_workflow_failure_is_retained_not_swallowed(p1_runtime, monkeypatch):
     supervisor = WorkflowSupervisor()
     workflow_id = supervisor.create_workflow("doomed workflow")
 
-    class ExplodingResearchAgent:
-        """Stands in for ResearchAgent and fails mid-workflow."""
+    class ExplodingCodingAgent:
+        """Stands in for CodingAgent and fails mid-workflow."""
 
         def __init__(self, bus):
             self.bus = bus
 
-        def search(self, query):
-            raise RuntimeError("boom: research subsystem crashed")
+        def write_file(self, filename, content):
+            raise RuntimeError("boom: coding subsystem crashed")
 
-        def write_research(self, filename, content):  # pragma: no cover
-            return "unused"
+        def read_file(self, filename):  # pragma: no cover
+            return ""
+
+        def run_tests(self):  # pragma: no cover
+            return {}
 
         def send_result(self, receiver, content):  # pragma: no cover
             return None
 
     monkeypatch.setattr(
-        "agents.supervisor.service.ResearchAgent", ExplodingResearchAgent
+        "agents.supervisor.service.CodingAgent", ExplodingCodingAgent
     )
 
     workflow = supervisor.start_workflow(workflow_id)
 
     assert workflow.status == WorkflowStatus.FAILED
     assert workflow.error is not None
-    assert "boom: research subsystem crashed" in workflow.error
+    assert "boom: coding subsystem crashed" in workflow.error
     assert workflow.completed_at is not None
     # The failing phase is retained as incomplete.
-    research_phase = [p for p in workflow.phases if p.agent == "research"][-1]
-    assert research_phase.status == WorkflowStatus.RUNNING
+    coding_phase = [p for p in workflow.phases if p.agent == "coding"][-1]
+    assert coding_phase.status == WorkflowStatus.RUNNING
     assert "boom" in (workflow.summary()["error"] or "")
 
 
@@ -265,12 +271,12 @@ def test_kavach_deny_fails_workflow_and_is_never_reported_as_success(
     supervisor = WorkflowSupervisor()
     workflow_id = supervisor.create_workflow("attack workflow")
 
-    # Quarantine research-01 through the REAL Shield enforcement service.
-    QuarantineService().quarantine(AgentId.RESEARCH_01)
+    # Quarantine a participating agent through the REAL Shield enforcement service.
+    QuarantineService().quarantine(AgentId.CODING_01)
 
     workflow = supervisor.start_workflow(workflow_id)
 
-    # The workflow reached the research phase and was DENIED by Kavach.
+    # The workflow reached the coding phase and was DENIED by Kavach.
     assert workflow.status == WorkflowStatus.FAILED
     assert workflow.error is not None
     assert "KavachDeniedError" in workflow.error
@@ -285,6 +291,7 @@ def test_kavach_deny_fails_workflow_and_is_never_reported_as_success(
 
     # And the workflow result snapshot never claims the protected action ran.
     assert "coding" not in (workflow.result or {})
+    assert "deployment" not in (workflow.result or {})
     event_types = [event.event_type.value for event in workflow.events]
     assert "WORKFLOW_FAILED" in event_types
 
@@ -308,7 +315,7 @@ def test_supervisor_events_correlate_by_workflow_id(p1_runtime):
     # Phase lifecycle is visible per agent for GET /workflows/:id/events.
     phase_started = [e for e in events if e.event_type.value == "PHASE_STARTED"]
     assert {e.agent for e in phase_started} == {
-        "orchestrator", "research", "coding", "verification", "deployment",
+        "orchestrator", "coding", "verification", "deployment",
     }
 
 
@@ -351,31 +358,35 @@ def test_supervisor_does_not_duplicate_shield_security_state(p1_runtime):
 def test_quarantine_propagates_into_supervised_p1_workflow(p1_runtime):
     """The critical Phase 21B invariant, exercised through the supervisor.
 
-    1. research-01 ACTIVE
-    2. supervised workflow with legitimate research ops -> COMPLETED (ALLOW)
+    1. research-01 and coding-01 ACTIVE
+    2. supervised workflow with legitimate protected ops -> COMPLETED (ALLOW)
     3. real QuarantineService quarantines research-01
-    4. second supervised workflow performs real ResearchTools operations
-    5. Kavach DENIES with exactly AGENT_QUARANTINED
-    6. deployment/coding/verification agents remain functional
-    7. release research-01
-    8. legitimate research operation works again
+    4. real ResearchTools in the SAME process deny with exactly
+       AGENT_QUARANTINED (no stale Shield state)
+    5. quarantine fails a supervised workflow at a participating agent
+    6. deployment/verification agents remain functional
+    7. release through the same enforcement service
+    8. legitimate research and a legitimate supervised workflow work again
     """
     supervisor = WorkflowSupervisor()
     bus = MessageBus()
     research = ResearchAgent(bus)
-    deployment = DeploymentAgent(bus)
     coding = CodingAgent(bus)
+    deployment = DeploymentAgent(bus)
     verification = VerificationAgent(bus)
     quarantine = QuarantineService()
 
     # 1. ACTIVE
-    assert (
-        p1_runtime.identity_service.get_agent(AgentId.RESEARCH_01).state
-        == SecurityState.ACTIVE
-    )
+    for agent_id in (AgentId.RESEARCH_01, AgentId.CODING_01):
+        assert (
+            p1_runtime.identity_service.get_agent(agent_id).state
+            == SecurityState.ACTIVE
+        )
 
     # 2. Legitimate supervised workflow -> COMPLETED.
-    first_id = supervisor.create_workflow("legitimate research run")
+    first_id = supervisor.create_workflow(
+        "Calculate 12 * 7 + 5 and verify the result."
+    )
     assert supervisor.start_workflow(first_id).status == WorkflowStatus.COMPLETED
 
     # 3. Real quarantine via shared ShieldRuntime.
@@ -385,14 +396,7 @@ def test_quarantine_propagates_into_supervised_p1_workflow(p1_runtime):
         == SecurityState.QUARANTINED
     )
 
-    # 4/5. Supervised workflow hits real ResearchTools -> DENIED.
-    second_id = supervisor.create_workflow("post-quarantine attempt")
-    denied_workflow = supervisor.start_workflow(second_id)
-    assert denied_workflow.status == WorkflowStatus.FAILED
-    assert denied_workflow.result["kavach_denied"] is True
-    assert denied_workflow.result["reason_codes"] == ["AGENT_QUARANTINED"]
-
-    # Tool-level: exactly AGENT_QUARANTINED, nothing else.
+    # 4. Real ResearchTools see the quarantine immediately.
     with pytest.raises(KavachDeniedError) as denial:
         research.search("must be denied")
     assert denial.value.result.decision == AuthorizationDecision.DENY
@@ -400,19 +404,29 @@ def test_quarantine_propagates_into_supervised_p1_workflow(p1_runtime):
         "AGENT_QUARANTINED"
     ]
 
+    # 5. A quarantined participating agent fails the supervised workflow.
+    quarantine.quarantine(AgentId.CODING_01)
+    second_id = supervisor.create_workflow("post-quarantine attempt")
+    denied_workflow = supervisor.start_workflow(second_id)
+    assert denied_workflow.status == WorkflowStatus.FAILED
+    assert denied_workflow.result["kavach_denied"] is True
+    assert denied_workflow.result["reason_codes"] == ["AGENT_QUARANTINED"]
+
     # 6. Quarantine is agent-specific: other real agents keep working.
     assert deployment.simulate_deployment("staging")["status"] == "SUCCESS"
-    assert coding.run_tests()["status"] == "PASSED"
     assert verification.run_tests()["status"] == "PASSED"
 
     # 7. Release through the same Shield enforcement service.
     quarantine.release(AgentId.RESEARCH_01)
-    assert (
-        p1_runtime.identity_service.get_agent(AgentId.RESEARCH_01).state
-        == SecurityState.ACTIVE
-    )
+    quarantine.release(AgentId.CODING_01)
+    for agent_id in (AgentId.RESEARCH_01, AgentId.CODING_01):
+        assert (
+            p1_runtime.identity_service.get_agent(agent_id).state
+            == SecurityState.ACTIVE
+        )
 
-    # 8. Legitimate research works again — via tools AND supervisor.
+    # 8. Legitimate work resumes — via tools AND supervisor.
     assert research.search("restored")["query"] == "restored"
-    third_id = supervisor.create_workflow("post-release research run")
+    assert coding.run_tests()["status"] == "PASSED"
+    third_id = supervisor.create_workflow("post-release run")
     assert supervisor.start_workflow(third_id).status == WorkflowStatus.COMPLETED

@@ -76,8 +76,13 @@ def run_normal_workflow() -> None:
     step(2, "Research performs web search")
     res.search("Fibonacci algorithm")
 
-    step(3, "Research writes output to workspace")
-    res.write_research("fibonacci.txt", "Fibonacci: each number is sum of two preceding.")
+    step(3, "Research attempts to write output (research-01 is READ-ONLY)")
+    try:
+        res.write_research("fibonacci.txt", "Fibonacci: each number is sum of two preceding.")
+        print("          -> ALLOW")
+    except KavachDeniedError as denial:
+        reasons = [rc.value for rc in denial.result.reason_codes] if denial.result else []
+        print(f"          -> DENY {reasons} (no side effect executed)")
 
     step(4, "Research sends result through MessageBus")
     res.send_result("orchestrator", {"status": "RESEARCH_COMPLETE"})
