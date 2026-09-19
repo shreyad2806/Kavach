@@ -9,7 +9,13 @@ async function request(path, options = {}) {
   });
 
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}`);
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (body.detail) detail = body.detail;
+      else if (body.error) detail = body.error;
+    } catch {}
+    throw new Error(detail);
   }
 
   return res.json();

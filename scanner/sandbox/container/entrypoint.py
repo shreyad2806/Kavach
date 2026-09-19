@@ -243,7 +243,19 @@ def main():
     results_table = os.environ["SANDBOX_RESULTS_TABLE"]
     now = datetime.now(timezone.utc).isoformat()
 
-    quarantine_key = f"quarantine/{artifact_id}/artifact"
+    # Discover the actual S3 key by listing the quarantine prefix for this artifact
+    quarantine_prefix = f"quarantine/{artifact_id}/"
+    quarantine_key = None
+    try:
+        resp = _s3().list_objects_v2(Bucket=bucket, Prefix=quarantine_prefix, MaxKeys=1)
+        contents = resp.get("Contents", [])
+        if contents:
+            quarantine_key = contents[0]["Key"]
+    except Exception:
+        pass
+
+    if not quarantine_key:
+        quarantine_key = f"quarantine/{artifact_id}/artifact"  # fallback
 
     with tempfile.TemporaryDirectory() as tmpdir:
         artifact_dir = Path(tmpdir) / "artifact"

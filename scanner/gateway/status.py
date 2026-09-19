@@ -41,7 +41,6 @@ def handler(event: dict, context) -> dict:
 
     log.info("status requested", extra={"artifact_id": artifact_id, "status": record.status.value})
 
-    # Build findings summary (counts only — not full descriptions)
     findings = get_findings(artifact_id)
     finding_counts: dict[str, int] = {}
     for f in findings:
@@ -62,6 +61,18 @@ def handler(event: dict, context) -> dict:
         "updated_at": record.updated_at.isoformat(),
         "finding_counts": finding_counts,
         "total_findings": len(findings),
+        "findings": [
+            {
+                "scanner": f.scanner.value,
+                "severity": f.severity.value,
+                "title": f.title,
+                "description": f.description,
+                "location": f.location,
+                "cve_id": f.cve_id,
+                "rule_id": f.rule_id,
+            }
+            for f in findings
+        ],
     }
 
     if verdict:

@@ -151,8 +151,12 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: s3:GetObject
-                Resource: !Sub "${ArtifactBucket.Arn}/quarantine/*"
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "${ArtifactBucket.Arn}/quarantine/*"
+                  - !GetAtt ArtifactBucket.Arn
               - Effect: Allow
                 Action:
                   - dynamodb:PutItem
