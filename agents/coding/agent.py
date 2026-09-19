@@ -41,11 +41,11 @@ class CodingAgent:
 
     def read_file(self, filename: str) -> str:
         """Read a file from the coding workspace."""
-        _log.info("reading file", extra={"agent": "coding", "filename": filename})
+        _log.info("reading file", extra={"agent": "coding", "file": filename})
         content = self.tools.read_file(filename)
         _log.info(
             "file read",
-            extra={"agent": "coding", "filename": filename, "content_length": len(content)},
+            extra={"agent": "coding", "file": filename, "content_length": len(content)},
         )
         return content
 
@@ -53,10 +53,10 @@ class CodingAgent:
         """Write a file to the coding workspace."""
         _log.info(
             "writing file",
-            extra={"agent": "coding", "filename": filename, "content_length": len(content)},
+            extra={"agent": "coding", "file": filename, "content_length": len(content)},
         )
         result = self.tools.write_file(filename, content)
-        _log.info("file written", extra={"agent": "coding", "filename": filename})
+        _log.info("file written", extra={"agent": "coding", "file": filename})
         return result
 
     def run_tests(self) -> dict[str, Any]:

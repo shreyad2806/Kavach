@@ -73,6 +73,25 @@ class _JsonFormatter(logging.Formatter):
         return json.dumps(entry, default=str)
 
 
+# Safe wrapper: renames any extra key that collides with a reserved LogRecord
+# attribute before the record is created, preventing the KeyError crash.
+_LOGRECORD_RESERVED = frozenset(logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys())
+
+
+class _SafeLogger(logging.Logger):
+    """Logger subclass that sanitizes extra= keys before record creation."""
+
+    def makeRecord(self, name, level, fn, lno, msg, args, exc_info,
+                   func=None, extra=None, sinfo=None):
+        if extra:
+            safe = {}
+            for k, v in extra.items():
+                safe[k if k not in _LOGRECORD_RESERVED else f"x_{k}"] = v
+            extra = safe
+        return super().makeRecord(name, level, fn, lno, msg, args, exc_info,
+                                  func, extra, sinfo)
+
+
 class _HumanFormatter(logging.Formatter):
     """Human-readable format for console and errors.log."""
     _FMT = "%(asctime)s  %(levelname)-8s  %(name)-42s  %(message)s"
@@ -178,4 +197,10 @@ def get_logger(name: str) -> logging.Logger:
         kavach.api               — REST API / FastAPI
     """
     _setup()
-    return logging.getLogger(name)
+    # Use _SafeLogger for all kavach.* loggers so reserved-key collisions
+    # in extra= dicts are silently renamed instead of crashing.
+    prev_class = logging.getLoggerClass()
+    logging.setLoggerClass(_SafeLogger)
+    logger = logging.getLogger(name)
+    logging.setLoggerClass(prev_class)
+    return logger

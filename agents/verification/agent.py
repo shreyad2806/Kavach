@@ -41,13 +41,13 @@ class VerificationAgent:
 
     def inspect_output(self, filename: str) -> dict[str, Any]:
         """Inspect a controlled output file."""
-        _log.info("inspecting output", extra={"agent": "verification", "filename": filename})
+        _log.info("inspecting output", extra={"agent": "verification", "file": filename})
         result = self.tools.inspect_output(filename)
         _log.info(
             "output inspection complete",
             extra={
                 "agent": "verification",
-                "filename": filename,
+                "file": filename,
                 "status": result.get("status"),
                 "size": result.get("size"),
             },

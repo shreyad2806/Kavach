@@ -55,10 +55,10 @@ class ResearchAgent:
         """Write research results to workspace."""
         _log.info(
             "writing research output",
-            extra={"agent": "research", "filename": filename, "content_length": len(content)},
+            extra={"agent": "research", "file": filename, "content_length": len(content)},
         )
         result = self.tools.write_research(filename, content)
-        _log.info("research output written", extra={"agent": "research", "filename": filename})
+        _log.info("research output written", extra={"agent": "research", "file": filename})
         return result
 
     def send_result(self, receiver: str, content: dict[str, Any]) -> AgentMessage:
