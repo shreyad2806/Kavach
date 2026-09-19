@@ -1,1 +1,1 @@
-Fibonacci: each number is sum of two preceding.
+Research on 'post-release research run' completed.

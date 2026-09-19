@@ -30,6 +30,7 @@ from shield.gateway.models import (
 )
 from shield.identity.models import AgentId
 from shield.provenance.models import Provenance
+from shield.runtime.services import get_shield_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,10 @@ class KavachGuard:
         cedar_adapter=None,
         incident_service=None,
     ) -> None:
+        # Keep explicitly injected dependencies for isolated tests.  Missing
+        # dependencies are resolved from the runtime at authorization time so
+        # every default guard, including module-level tool guards, observes
+        # the same authoritative runtime state.
         self._identity_service = identity_service
         self._capability_service = capability_service
         self._cedar_adapter = cedar_adapter
@@ -182,15 +187,13 @@ class KavachGuard:
                 task_id=task_id,
             )
 
-            kwargs: dict[str, Any] = {}
-            if self._identity_service is not None:
-                kwargs["identity_service"] = self._identity_service
-            if self._capability_service is not None:
-                kwargs["capability_service"] = self._capability_service
-            if self._cedar_adapter is not None:
-                kwargs["cedar_adapter"] = self._cedar_adapter
-            if self._incident_service is not None:
-                kwargs["incident_service"] = self._incident_service
+            runtime = get_shield_runtime()
+            kwargs: dict[str, Any] = {
+                "identity_service": self._identity_service or runtime.identity_service,
+                "capability_service": self._capability_service or runtime.capability_service,
+                "cedar_adapter": self._cedar_adapter or runtime.cedar_adapter,
+                "incident_service": self._incident_service or runtime.incident_service,
+            }
 
             result = authorize(request, **kwargs)
             self._authorization_calls.append(result)

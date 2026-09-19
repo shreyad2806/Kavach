@@ -21,13 +21,14 @@ from shield.gateway.models import (
 from shield.identity.models import AgentId
 from shield.identity.service import IdentityService
 from shield.provenance.models import Provenance
+from shield.runtime.services import get_shield_runtime
 
 
 # ============================================================================
 # Application Service Dependencies
 # ============================================================================
 
-_default_identity_service = IdentityService()
+_default_identity_service = get_shield_runtime().identity_service
 
 
 def get_identity_service() -> IdentityService:
@@ -123,8 +124,16 @@ async def authorize_request(
         # Convert HTTP request to ActionRequest
         action_request = request.to_action_request()
         
-        # Call Kavach authorization pipeline
-        decision = authorize(action_request, identity_service=identity_service)
+        # Call the unchanged Kavach authorization pipeline with the same
+        # long-lived runtime dependencies used by P1 guards and quarantine.
+        runtime = get_shield_runtime()
+        decision = authorize(
+            action_request,
+            identity_service=identity_service,
+            capability_service=runtime.capability_service,
+            cedar_adapter=runtime.cedar_adapter,
+            incident_service=runtime.incident_service,
+        )
         
         return decision
     except ValueError as e:
