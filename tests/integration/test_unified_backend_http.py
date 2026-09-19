@@ -12,12 +12,47 @@ centerpiece is the end-to-end security invariant:
 proving the HTTP control plane and the real P1 runtime share ONE Shield state.
 """
 
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
 from api.deps import reset_supervisor
 from api.main import app
 from shield.runtime.services import reset_shield_runtime
+
+TERMINAL = ("COMPLETED", "FAILED", "STOPPED")
+
+
+def _start(client, workflow_id):
+    """Start a workflow; returns the IMMEDIATE snapshot (status RUNNING).
+
+    POST /workflows/{id}/start intentionally does not block: the phases run on
+    a backend worker thread and the caller polls, exactly like the UI.
+    """
+    started = client.post(f"/workflows/{workflow_id}/start")
+    assert started.status_code == 200
+    return started.json()
+
+
+def _wait_for_terminal(client, workflow_id, timeout=30.0):
+    """Poll GET /workflows/{id} until the workflow settles."""
+    deadline = time.time() + timeout
+    snapshot = client.get(f"/workflows/{workflow_id}").json()
+    while snapshot["status"] not in TERMINAL:
+        if time.time() > deadline:
+            raise AssertionError(
+                f"workflow {workflow_id} did not settle (last status {snapshot['status']})"
+            )
+        time.sleep(0.02)
+        snapshot = client.get(f"/workflows/{workflow_id}").json()
+    return snapshot
+
+
+def _start_and_wait(client, workflow_id, timeout=30.0):
+    """Start a workflow and wait for its real terminal snapshot."""
+    _start(client, workflow_id)
+    return _wait_for_terminal(client, workflow_id, timeout)
 
 
 @pytest.fixture(autouse=True)
@@ -105,7 +140,9 @@ def test_workflow_create_start_complete_and_events(client):
 
     started = client.post(f"/workflows/{workflow_id}/start")
     assert started.status_code == 200
-    summary = started.json()
+    # Start returns IMMEDIATELY with RUNNING — it never blocks on the phases.
+    assert started.json()["status"] == "RUNNING"
+    summary = _wait_for_terminal(client, workflow_id)
     assert summary["status"] == "COMPLETED"
     # Real P1 results are present (coding/verification/deployment phases ran).
     assert summary["result"]["coding"]
@@ -149,18 +186,22 @@ def test_unknown_workflow(client):
 # ---------------------------------------------------------------------------
 
 def test_http_quarantine_denies_real_p1_protected_operation(client):
-    """The full invariant: HTTP -> real P1 AgentTools -> KavachGuard -> DENY."""
+    """The full invariant: HTTP -> real P1 AgentTools -> KavachGuard -> DENY.
+
+    The canonical workflow runs orchestrator -> coding -> verification ->
+    deployment, so coding-01 is the participating agent used here.
+    """
     # Baseline: a legitimate workflow completes through the real P1 agents.
     baseline = client.post("/workflows", json={"task": "baseline"}).json()["workflow_id"]
-    assert client.post(f"/workflows/{baseline}/start").json()["status"] == "COMPLETED"
+    assert _start_and_wait(client, baseline)["status"] == "COMPLETED"
 
-    # Quarantine research-01 through the HTTP control plane.
-    assert client.post("/agents/research-01/isolate").json()["state"] == "QUARANTINED"
+    # Quarantine coding-01 through the HTTP control plane.
+    assert client.post("/agents/coding-01/isolate").json()["state"] == "QUARANTINED"
 
-    # A real workflow whose first protected research operation must now be denied
+    # A real workflow whose first protected coding operation must now be denied
     # by the SAME ShieldRuntime the HTTP isolate mutated.
     attack = client.post("/workflows", json={"task": "exfiltrate"}).json()["workflow_id"]
-    result = client.post(f"/workflows/{attack}/start").json()
+    result = _start_and_wait(client, attack)
 
     assert result["status"] == "FAILED"
     assert result["result"]["kavach_denied"] is True
@@ -168,16 +209,16 @@ def test_http_quarantine_denies_real_p1_protected_operation(client):
     assert "AGENT_QUARANTINED" in result["result"]["reason_codes"]
     assert "AGENT_QUARANTINED" in result["error"]
 
-    # 13. Other agents remain operational (only research-01 is quarantined).
+    # 13. Other agents remain operational (only coding-01 is quarantined).
     states = {a["agent_id"]: a["state"] for a in client.get("/agents").json()}
-    assert states["research-01"] == "QUARANTINED"
-    for other in ("orchestrator-01", "coding-01", "deployment-01", "verification-01"):
+    assert states["coding-01"] == "QUARANTINED"
+    for other in ("orchestrator-01", "research-01", "deployment-01", "verification-01"):
         assert states[other] == "ACTIVE"
 
-    # 11/13. Restore -> legitimate research works again through real P1.
-    assert client.post("/agents/research-01/restore").json()["state"] == "ACTIVE"
+    # 11/13. Restore -> legitimate work works again through real P1.
+    assert client.post("/agents/coding-01/restore").json()["state"] == "ACTIVE"
     legit = client.post("/workflows", json={"task": "legit again"}).json()["workflow_id"]
-    assert client.post(f"/workflows/{legit}/start").json()["status"] == "COMPLETED"
+    assert _start_and_wait(client, legit)["status"] == "COMPLETED"
 
 
 # ---------------------------------------------------------------------------

@@ -93,6 +93,16 @@ class IncidentService:
         )
         return incident
 
+    def clear(self) -> None:
+        """
+        Drop all incidents. Used ONLY to start a fresh demo session.
+
+        This does not weaken detection: a new incident is created whenever a
+        later decision again crosses the threshold. Incidents are held in
+        memory, to be replaced by durable storage in a later phase.
+        """
+        self._incidents.clear()
+
     def get(self, incident_id: str) -> Incident | None:
         """Retrieve an incident by ID."""
         return self._incidents.get(incident_id)

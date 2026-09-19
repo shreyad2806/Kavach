@@ -26,6 +26,11 @@ class CapabilityService:
                     description="Authority to coordinate multi-agent workflows"
                 ),
             ],
+            # research-01 holds READ-ONLY research authority by design.
+            # It deliberately does NOT hold research.write: the research agent
+            # must not be able to persist artifacts into the workspace.  A
+            # research.write request therefore fails the capability gate with
+            # CAPABILITY_MISMATCH before Cedar is ever consulted.
             "research-01": [
                 Capability(
                     name=CapabilityName.RESEARCH_SEARCH,
@@ -34,10 +39,6 @@ class CapabilityService:
                 Capability(
                     name=CapabilityName.RESEARCH_READ,
                     description="Authority to read research documents and data"
-                ),
-                Capability(
-                    name=CapabilityName.RESEARCH_WRITE,
-                    description="Authority to write research output to workspace"
                 ),
             ],
             "coding-01": [

@@ -11,12 +11,17 @@ class TestCapabilityService:
         self.service = CapabilityService()
     
     def test_1_research_capabilities(self):
-        """TEST 1 — Research capabilities."""
+        """TEST 1 — Research capabilities are READ-ONLY.
+
+        research-01 deliberately does not hold research.write, so a
+        research.write request is denied with CAPABILITY_MISMATCH.
+        """
         capabilities = self.service.get_capabilities("research-01")
         
-        assert len(capabilities) == 3
+        assert len(capabilities) == 2
         capability_names = {cap.name.value for cap in capabilities}
-        assert capability_names == {"research.search", "research.read", "research.write"}
+        assert capability_names == {"research.search", "research.read"}
+        assert not self.service.has_capability("research-01", "research.write")
     
     def test_2_coding_capabilities(self):
         """TEST 2 — Coding capabilities."""
@@ -98,11 +103,11 @@ class TestCapabilityService:
         # Verify the internal registry is unchanged
         caps_after = self.service.get_capabilities("research-01")
         assert len(caps_after) == original_count
-        assert len(caps_after) == 3
+        assert len(caps_after) == 2
         
         # Verify capabilities are still present
         capability_names = {cap.name.value for cap in caps_after}
-        assert capability_names == {"research.search", "research.read", "research.write"}
+        assert capability_names == {"research.search", "research.read"}
     
     def test_12_all_canonical_agents_have_capabilities(self):
         """TEST 12 — All canonical agents have capabilities."""

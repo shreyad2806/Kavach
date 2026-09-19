@@ -1,77 +1,106 @@
-/**
- * useKavach — single polling hook for all real backend data.
- *
- * Polls /agents, /events, /incidents, /dashboard every INTERVAL ms.
- * Uses a ref-based lock to prevent overlapping requests.
- * Stops when the component unmounts.
- *
- * Returns:
- *   agents        – live Shield identity list (5 agents)
- *   events        – Shield authorization audit events (chronological, newest last)
- *   incidents     – IncidentService list
- *   dashboard     – summary counts projection
- *   connected     – true once first successful fetch completes
- *   offline       – true once a fetch fails (stays true until next success)
- *   loading       – true only on the very first load
- *   refresh()     – trigger an immediate out-of-band poll
- */
-import { useState, useEffect, useRef, useCallback } from "react";
-import { api } from "../api.js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "../api";
 
-const INTERVAL_MS = 5000; // 5 s — 4 requests × 12 polls/min = 48 req/min
+/**
+ * Tracks ONE workflow.
+ *
+ * While the workflow is live we poll `GET /workflows/:id` only — a single
+ * request that returns status, events, agents and result together. We never
+ * poll /events, /agents, /dashboard and /incidents concurrently.
+ *
+ * Polling stops as soon as the workflow reaches a terminal state, so a
+ * finished demo cannot be throttled.
+ */
+
+const POLL_MS = 700;
+const TERMINAL = new Set(["COMPLETED", "FAILED", "STOPPED"]);
+
+// `status` values that mean "the workflow has no more work to do".
+export function isTerminal(status) {
+  return TERMINAL.has(status);
+}
 
 export function useKavach() {
-  const [agents,    setAgents]    = useState([]);
-  const [events,    setEvents]    = useState([]);
-  const [incidents, setIncidents] = useState([]);
-  const [dashboard, setDashboard] = useState(null);
-  const [connected, setConnected] = useState(false);
-  const [offline,   setOffline]   = useState(false);
-  const [loading,   setLoading]   = useState(true);
+  const [workflowId, setWorkflowId] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
+  const [error, setError] = useState(null);
 
-  // Prevent overlapping fetches
-  const inFlight = useRef(false);
-  const unmounted = useRef(false);
+  const timerRef = useRef(null);
+  // Monotonic generation: bumping it invalidates every in-flight poll loop, so
+  // untracking (or tracking a different workflow) can never leave a stale loop
+  // writing into state.
+  const genRef = useRef(0);
 
-  const poll = useCallback(async () => {
-    if (inFlight.current || unmounted.current) return;
-    inFlight.current = true;
-    try {
-      // Parallel fetch — all four in one round trip window
-      const [agentsData, eventsData, incidentsData, dashboardData] = await Promise.all([
-        api.getAgents(),
-        api.getEvents(200),
-        api.getIncidents(),
-        api.getDashboard(),
-      ]);
-      if (unmounted.current) return;
-      setAgents(agentsData);
-      setEvents(eventsData);
-      setIncidents(incidentsData);
-      setDashboard(dashboardData);
-      setConnected(true);
-      setOffline(false);
-      setLoading(false);
-    } catch {
-      if (unmounted.current) return;
-      setOffline(true);
-      setConnected(false);
-      setLoading(false);
-    } finally {
-      inFlight.current = false;
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
   }, []);
 
-  // Kick off immediately then on interval
-  useEffect(() => {
-    unmounted.current = false;
-    poll();
-    const timer = setInterval(poll, INTERVAL_MS);
-    return () => {
-      unmounted.current = true;
-      clearInterval(timer);
-    };
-  }, [poll]);
+  const untrack = useCallback(() => {
+    genRef.current += 1;
+    clearTimer();
+    setWorkflowId(null);
+    setSnapshot(null);
+    setError(null);
+  }, [clearTimer]);
 
-  return { agents, events, incidents, dashboard, connected, offline, loading, refresh: poll };
+  const track = useCallback(
+    (id) => {
+      genRef.current += 1;
+      const gen = genRef.current;
+      clearTimer();
+      setWorkflowId(id);
+      setSnapshot(null);
+      setError(null);
+
+      const loop = async () => {
+        if (gen !== genRef.current) return;
+
+        let data = null;
+        try {
+          data = await api.getWorkflow(id);
+        } catch (err) {
+          if (gen !== genRef.current) return;
+          // The workflow no longer exists (the session was reset) — stop
+          // quietly rather than surfacing a scary error.
+          if (err.kind === "not_found") return;
+          setError({ kind: err.kind, message: err.message });
+        }
+
+        if (gen !== genRef.current) return;
+        if (data) {
+          setSnapshot(data);
+          setError(null);
+        }
+
+        // Keep polling through a transient error so a rate limit self-heals.
+        if (!data || !TERMINAL.has(data.status)) {
+          timerRef.current = setTimeout(loop, POLL_MS);
+        }
+      };
+
+      loop();
+    },
+    [clearTimer],
+  );
+
+  // One immediate re-fetch (used after stop/attack to refresh state now).
+  const refresh = useCallback(async () => {
+    if (!workflowId) return null;
+    try {
+      const data = await api.getWorkflow(workflowId);
+      setSnapshot(data);
+      setError(null);
+      return data;
+    } catch (err) {
+      if (err.kind !== "not_found") setError({ kind: err.kind, message: err.message });
+      return null;
+    }
+  }, [workflowId]);
+
+  useEffect(() => () => clearTimer(), [clearTimer]);
+
+  return { workflowId, snapshot, error, track, untrack, refresh };
 }

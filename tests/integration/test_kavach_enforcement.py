@@ -561,10 +561,9 @@ def test_full_workflow_with_enforcement(agents):
     result = agent_map["research"].search("fibonacci")
     assert "query" in result
 
-    # Research writes (not protected — gap reported)
-    agent_map["research"].write_research("fib.txt", "Fibonacci research")
-
     # Research sends result (not protected — communication only)
+    # NOTE: research.write is NOT granted to research-01, so write_research is
+    # denied with CAPABILITY_MISMATCH; it is intentionally absent here.
     agent_map["research"].send_result("orchestrator", {"status": "DONE"})
 
     # Coding writes (protected: coding.write) → ALLOW

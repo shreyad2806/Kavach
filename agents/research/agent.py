@@ -18,11 +18,14 @@ class ResearchAgent:
             agent_id="research",
             name="Research Agent",
             role="researcher",
+            # READ-ONLY research agent. It does not declare a write capability,
+            # matching the Shield capability registry (research.search,
+            # research.read only) — a research.write attempt is denied by
+            # Kavach with CAPABILITY_MISMATCH before any side effect.
             capabilities=frozenset(
                 {
                     "web.search",
                     "document.read",
-                    "research.write",
                     "agent.message",
                 }
             ),
@@ -50,6 +53,31 @@ class ResearchAgent:
             extra={"agent": "research", "query": query, "result_count": result_count},
         )
         return result
+
+    def read_document(self, filename: str) -> dict[str, Any]:
+        """Read a source document from the research workspace (``research.read``).
+
+        A document that has not been ingested reports NOT_FOUND rather than
+        failing the workflow: the read is still a real, authorized
+        ``research.read`` decision, it simply has no content to return.  This
+        mirrors VerificationAgent.inspect_output.
+        """
+        _log.info(
+            "reading research document",
+            extra={"agent": "research", "file": filename},
+        )
+        try:
+            content = self.tools.read_document(filename)
+        except FileNotFoundError:
+            return {"status": "NOT_FOUND", "file": filename}
+        except ValueError:
+            return {"status": "INVALID", "file": filename}
+        return {
+            "status": "FOUND",
+            "file": filename,
+            "size": len(content),
+            "content": content,
+        }
 
     def write_research(self, filename: str, content: str) -> str:
         """Write research results to workspace."""

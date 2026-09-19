@@ -1,11 +1,15 @@
 from datetime import datetime, timezone
 from enum import Enum
+import json
 import logging
 import os
 from pathlib import Path
+import threading
 import uuid
+from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
+from shield.capabilities.models import CapabilityName
 from shield.gateway.models import (
     ActionName,
     ActionRequest,
@@ -15,9 +19,14 @@ from shield.gateway.models import (
     ResourceName,
 )
 from shield.identity.models import AgentId
+from shield.telemetry.context import get_current_workflow_id
+from shield.telemetry.session import record_event as _record_session_event
 from kavach_logger import get_logger
 
 _audit_log = get_logger("kavach.audit")
+
+# Serializes append writes so concurrent agents cannot interleave a JSONL line.
+_write_lock = threading.Lock()
 
 
 class EventType(str, Enum):
@@ -88,15 +97,29 @@ class SecurityEvent(BaseModel):
         le=100,
         description="Advisory risk score (0-100)."
     )
+    capability: CapabilityName | None = Field(
+        default=None,
+        description="Capability the source agent presented for this request."
+    )
+    workflow_id: str | None = Field(
+        default=None,
+        description="Supervisor workflow this decision belongs to, when applicable."
+    )
+    checks: dict[str, str] | None = Field(
+        default=None,
+        description="Per-stage AuthorizationChecks outcome for this decision."
+    )
 
 
 # ============================================================================
 # Audit Log Sink & Helper Functions
 # ============================================================================
 
-# Kept for backward compatibility — tests and __init__.py import these names.
-# The actual audit sink is now the centralized kavach.audit logger.
-DEFAULT_AUDIT_LOG_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "audit.log"
+# Kavach-owned audit sink, kept under a Kavach-only directory so the security
+# audit trail can never be confused with another subsystem's log file.
+DEFAULT_AUDIT_LOG_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "logs" / "kavach" / "audit.log"
+)
 
 
 def get_audit_log_path() -> Path:
@@ -136,7 +159,41 @@ def create_authorization_decision_event(
         policy_decision=result.decision,
         reason_codes=list(result.reason_codes),
         risk_score=result.risk_score,
+        capability=request.capability,
+        workflow_id=get_current_workflow_id(),
+        checks={
+            name: status
+            for name, status in result.checks.model_dump(mode="json").items()
+        },
     )
+
+
+def event_payload(event: SecurityEvent) -> dict[str, Any]:
+    """
+    Flatten a SecurityEvent into the machine-readable audit record.
+
+    This is the exact object written to the JSONL audit sink and exposed by
+    the read APIs — a projection of the SecurityEvent contract, not a second
+    event model.
+    """
+    return {
+        "event_id": event.event_id,
+        "timestamp": event.timestamp.isoformat(),
+        "event_type": event.event_type.value,
+        "category": "authorization",
+        "source_agent": event.source_agent.value,
+        "target_agent": event.target_agent.value,
+        "request_id": event.request_id,
+        "task_id": event.task_id,
+        "workflow_id": event.workflow_id,
+        "action": event.action.value,
+        "resource": event.resource.value,
+        "capability": event.capability.value if event.capability else None,
+        "policy_decision": event.policy_decision.value,
+        "reason_codes": [rc.value for rc in event.reason_codes],
+        "risk_score": event.risk_score,
+        "checks": event.checks,
+    }
 
 
 def write_event(
@@ -144,11 +201,35 @@ def write_event(
     log_path: Path | str | None = None,
 ) -> None:
     """
-    Emit a single SecurityEvent to the centralized audit logger.
+    Emit exactly one SecurityEvent to the Kavach audit sinks.
 
-    log_path is accepted for backward compatibility with tests that inject
-    a custom path, but is ignored — the centralized logger owns the file.
+    Three sinks, all best-effort and independent of each other:
+      1. the append-only JSONL audit file (one complete JSON object per line)
+      2. the current-session in-memory buffer (read APIs / dashboard)
+      3. the centralized ``kavach.audit`` structured logger
+
+    Telemetry is an audit side effect, never an authorization gate, so a
+    failure in any sink is contained here and can never change a verdict.
     """
+    payload = event_payload(event)
+
+    path = Path(log_path) if log_path is not None else get_audit_log_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps(payload, default=str)
+        with _write_lock:
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+    except OSError as exc:
+        logging.getLogger(__name__).warning(
+            "Failed to append audit record to %s: %s", path, exc
+        )
+
+    try:
+        _record_session_event(payload)
+    except Exception as exc:  # pragma: no cover - defensive
+        logging.getLogger(__name__).warning("Failed to record session event: %s", exc)
+
     level = (
         logging.WARNING
         if event.policy_decision == AuthorizationDecision.DENY
@@ -158,16 +239,17 @@ def write_event(
         level,
         "authorization_decision",
         extra={
-            "event_id": event.event_id,
-            "event_type": event.event_type.value,
-            "source_agent": event.source_agent.value,
-            "target_agent": event.target_agent.value,
-            "request_id": event.request_id,
-            "task_id": event.task_id,
-            "action": event.action.value,
-            "resource": event.resource.value,
-            "policy_decision": event.policy_decision.value,
-            "reason_codes": [rc.value for rc in event.reason_codes],
-            "risk_score": event.risk_score,
+            "event_id": payload["event_id"],
+            "event_type": payload["event_type"],
+            "workflow_id": payload["workflow_id"],
+            "source_agent": payload["source_agent"],
+            "target_agent": payload["target_agent"],
+            "request_id": payload["request_id"],
+            "task_id": payload["task_id"],
+            "action": payload["action"],
+            "resource": payload["resource"],
+            "policy_decision": payload["policy_decision"],
+            "reason_codes": payload["reason_codes"],
+            "risk_score": payload["risk_score"],
         },
     )

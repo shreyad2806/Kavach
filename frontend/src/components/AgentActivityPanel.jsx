@@ -5,59 +5,39 @@ import { Button } from "../ui/Button.jsx";
 import { Chip, Badge } from "../ui/index.jsx";
 import { decisionTone, relativeTime } from "../lib/format.js";
 
-// Hourly bar chart — green = allowed (bottom), red = denied (top)
-function DecisionsChart({ buckets }) {
-  const W = 280;
-  const H = 52;
-  const barW = Math.floor(W / buckets.length) - 2;
-  const maxVal = Math.max(...buckets.map((b) => b.allow + b.deny), 1);
+// Decision sequence — one bar per REAL authorization decision from this run,
+// oldest on the left, newest on the right. Nothing is bucketed, smoothed or
+// synthesised: a bar exists only because a decision exists.
+function DecisionStrip({ events }) {
+  const seq = useMemo(() => [...events].reverse().slice(-40), [events]);
+
+  if (seq.length === 0) {
+    return (
+      <div className="h-[52px] flex items-center">
+        <span className="text-[11.5px] text-ink3">No authorization decisions yet.</span>
+      </div>
+    );
+  }
 
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
-      {buckets.map((b, i) => {
-        const total = b.allow + b.deny;
-        const totalH = (total / maxVal) * H;
-        const allowH = total > 0 ? (b.allow / total) * totalH : 0;
-        const denyH  = totalH - allowH;
-        const x = i * (barW + 2);
-        const idle = total === 0;
-        return (
-          <g key={i}>
-            {idle ? (
-              <rect x={x} y={H - 3} width={barW} height={3} rx="1.5" fill="#12362a" />
-            ) : (
-              <>
-                {/* allow bar — bottom */}
-                {allowH > 0 && (
-                  <rect x={x} y={H - allowH} width={barW} height={allowH} rx="1.5" fill="#1fe98a" fillOpacity=".8" />
-                )}
-                {/* deny bar — stacked on top */}
-                {denyH > 0 && (
-                  <rect x={x} y={H - totalH} width={barW} height={denyH} rx="1.5" fill="#ff4d5e" fillOpacity=".8" />
-                )}
-              </>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+    <div
+      className="flex items-stretch gap-[3px] h-[52px]"
+      role="img"
+      aria-label={`${seq.length} authorization decisions in this run`}
+    >
+      {seq.map((e, i) => (
+        <span
+          key={e.event_id || e.request_id || i}
+          className="flex-1 min-w-[4px] rounded-sm"
+          style={{
+            background: e.policy_decision === "ALLOW" ? "#1fe98a" : "#ff4d5e",
+            opacity: 0.8,
+          }}
+          title={`${e.source_agent} ${e.action} → ${e.policy_decision}`}
+        />
+      ))}
+    </div>
   );
-}
-
-// Build hourly buckets from real events (last 12 hours)
-function buildBuckets(events) {
-  const now = Date.now();
-  const buckets = Array.from({ length: 12 }, () => ({ allow: 0, deny: 0 }));
-  for (const e of events) {
-    const age = now - new Date(e.timestamp).getTime();
-    const hourIdx = Math.floor(age / 3_600_000);
-    if (hourIdx >= 0 && hourIdx < 12) {
-      const bucket = buckets[11 - hourIdx]; // newest on the right
-      if (e.policy_decision === "ALLOW") bucket.allow++;
-      else bucket.deny++;
-    }
-  }
-  return buckets;
 }
 
 const REASON_CODE_COLORS = {
@@ -69,7 +49,7 @@ const REASON_CODE_COLORS = {
 export function AgentActivityPanel({
   events = [],
   onEventSelect,
-  selectedEventId,
+  selectedRequestId,
   quarantinedCount = 0,
   onReviewQuarantine,
 }) {
@@ -95,7 +75,6 @@ export function AgentActivityPanel({
 
   const allowCount = events.filter((e) => e.policy_decision === "ALLOW").length;
   const denyCount  = events.filter((e) => e.policy_decision === "DENY").length;
-  const buckets = useMemo(() => buildBuckets(events), [events]);
 
   // Decision engine breakdown
   const cedarDeny   = events.filter((e) => e.reason_codes?.includes("POLICY_DENIED")).length;
@@ -154,8 +133,8 @@ export function AgentActivityPanel({
       <div className="grid grid-cols-2 gap-3">
         {/* Decisions bar chart */}
         <div className="bg-panel2 border border-line rounded-tile p-3">
-          <div className="text-[12px] font-semibold text-ink2 mb-2">Decisions this hour</div>
-          <DecisionsChart buckets={buckets} />
+          <div className="text-[12px] font-semibold text-ink2 mb-2">Decision sequence</div>
+          <DecisionStrip events={events} />
           <div className="text-[11px] text-ink3 mt-2 font-mono">
             <span className="text-neon">{allowCount} allowed</span>
             {" · "}
@@ -203,8 +182,10 @@ export function AgentActivityPanel({
       <div className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 gap-2">
-            <p className="text-[13px] text-ink3">No agent activity in this window.</p>
-            <button className="text-[12px] text-neon hover:underline">Widen time range</button>
+            <p className="text-[13px] text-ink3">No authorization events yet.</p>
+            <p className="text-[11.5px] text-ink3">
+              Decisions appear here as the workflow executes.
+            </p>
           </div>
         ) : (
           <table className="w-full text-[12px]" role="table">
@@ -219,7 +200,9 @@ export function AgentActivityPanel({
             </thead>
             <tbody>
               {filtered.map((e, i) => {
-                const isSelected = e.event_id === selectedEventId;
+                // Selection is by request_id — the same identity the
+                // authorization pipeline renders against.
+                const isSelected = e.request_id === selectedRequestId;
                 return (
                   <tr
                     key={e.event_id || i}

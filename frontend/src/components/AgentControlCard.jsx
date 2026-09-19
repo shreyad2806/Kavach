@@ -36,7 +36,9 @@ export function AgentControlCard({ agents = [], selectedId, onSelect, deniedCoun
   const [busy,  setBusy]  = useState(false);
   const [error, setError] = useState("");
 
-  const agent = agents.find((a) => a.agent_id === selectedId) ?? agents[0];
+  // No hardcoded default: the component shows exactly the agent that the
+  // selected authorization event (or an explicit operator click) points at.
+  const agent = agents.find((a) => a.agent_id === selectedId) ?? null;
 
   async function handleIsolate() {
     if (!agent) return;
@@ -84,6 +86,7 @@ export function AgentControlCard({ agents = [], selectedId, onSelect, deniedCoun
           aria-label="Select agent"
           className="w-full appearance-none bg-panel2 border border-line rounded-tile px-3 py-2 text-[12.5px] text-ink font-mono outline-none cursor-pointer hover:border-line2 transition-colors"
         >
+          {!selectedId && <option value="">Select agent…</option>}
           {agents.map((a) => (
             <option key={a.agent_id} value={a.agent_id}>
               {a.agent_id}
@@ -145,7 +148,11 @@ export function AgentControlCard({ agents = [], selectedId, onSelect, deniedCoun
           </div>
         </>
       ) : (
-        <div className="text-[12.5px] text-ink3 py-4 text-center">Loading agents…</div>
+        <div className="text-[12.5px] text-ink3 py-4 text-center">
+          {agents.length === 0
+            ? "Loading agents…"
+            : "Select an activity event or an agent in the fleet."}
+        </div>
       )}
 
       {/* Footer — real deny count */}

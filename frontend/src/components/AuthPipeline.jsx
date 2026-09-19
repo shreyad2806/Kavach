@@ -27,7 +27,7 @@ function firstFailedCheck(checks) {
 }
 
 function buildExplanation(event, checks) {
-  if (!event) return "Select an event row to inspect the authorization pipeline.";
+  if (!event) return "Select an authorization event to inspect.";
   const failed = firstFailedCheck(checks);
   if (!failed) {
     return `Request from ${event.source_agent} to ${event.action} on ${event.resource} passed all checks and was allowed.`;
@@ -76,12 +76,12 @@ export function AuthPipeline({ event = null, checks = {} }) {
               <div className="text-[10.5px] text-ink3 text-center leading-tight max-w-[56px]">
                 {label}
               </div>
-              {/* Status in mono */}
+              {/* Status in mono — a stage that never ran says so explicitly. */}
               <div
-                className="text-[9.5px] font-mono font-semibold text-center"
+                className="text-[9.5px] font-mono font-semibold text-center leading-tight"
                 style={{ color: styles.text }}
               >
-                {status === "NOT_EVALUATED" ? "N/E" : status}
+                {status === "NOT_EVALUATED" ? "NOT EVALUATED" : status}
               </div>
             </div>
           );
