@@ -7,6 +7,7 @@ from api.routes.dashboard import router as dashboard_router
 from api.routes.events import router as events_router
 from api.routes.incidents import router as incidents_router
 from api.routes.policies import router as policies_router
+from api.routes.workflows import router as workflows_router
 
 log = get_logger("kavach.api")
 
@@ -35,3 +36,4 @@ app.include_router(incidents_router, prefix="/incidents")
 app.include_router(events_router, prefix="/events")
 app.include_router(policies_router, prefix="/policies")
 app.include_router(dashboard_router, prefix="/dashboard")
+app.include_router(workflows_router, prefix="/workflows")
