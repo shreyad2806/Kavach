@@ -16,7 +16,14 @@ const app = express();
 
 app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:5173" }));
 app.use(express.json());
-app.use(rateLimit({ windowMs: 60_000, max: 100 }));
+app.use(rateLimit({
+  windowMs: 60_000,
+  max: 500,
+  skip: (req) => {
+    const ip = req.ip || req.connection?.remoteAddress || "";
+    return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+  },
+}));
 
 app.get("/health", (_, res) => res.json({ status: "ok" }));
 

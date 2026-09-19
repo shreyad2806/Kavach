@@ -18,7 +18,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../api.js";
 
-const INTERVAL_MS = 2000; // 2 s — lightweight, prevents overlapping requests
+const INTERVAL_MS = 5000; // 5 s — 4 requests × 12 polls/min = 48 req/min
 
 export function useKavach() {
   const [agents,    setAgents]    = useState([]);
