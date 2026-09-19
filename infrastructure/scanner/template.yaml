@@ -27,7 +27,6 @@ Globals:
         FINDINGS_TABLE: !Ref FindingsTable
         VERDICTS_TABLE: !Ref VerdictsTable
         SANDBOX_RESULTS_TABLE: !Ref SandboxResultsTable
-        PIPELINE_STATE_MACHINE_ARN: !Ref ScannerStateMachine
         FARGATE_CLUSTER_ARN: !GetAtt SandboxCluster.Arn
         FARGATE_TASK_DEF_ARN: !Ref SandboxTaskDefinition
         FARGATE_SUBNET_ID: !Ref PrivateSubnetId
@@ -254,13 +253,18 @@ Resources:
       ImageUri: !Ref LambdaImageUri
       ImageConfig:
         Command: ["scanner.gateway.handler.handler"]
+      Environment:
+        Variables:
+          PIPELINE_STATE_MACHINE_ARN: !Ref ScannerStateMachine
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ArtifactsTable
         - S3CrudPolicy:
             BucketName: !Ref ArtifactBucket
-        - StepFunctionsExecutionPolicy:
-            StateMachineName: !GetAtt ScannerStateMachine.Name
+        - Statement:
+            - Effect: Allow
+              Action: states:StartExecution
+              Resource: !Ref ScannerStateMachine
       Events:
         ScanApi:
           Type: Api
