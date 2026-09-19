@@ -94,6 +94,16 @@ class SecurityEvent(BaseModel):
 # Audit Log Sink & Helper Functions
 # ============================================================================
 
+# Kept for backward compatibility — tests and __init__.py import these names.
+# The actual audit sink is now the centralized kavach.audit logger.
+DEFAULT_AUDIT_LOG_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "audit.log"
+
+
+def get_audit_log_path() -> Path:
+    """Return the configured audit log path (compatibility stub)."""
+    env_path = os.environ.get("KAVACH_AUDIT_LOG_PATH")
+    return Path(env_path) if env_path else DEFAULT_AUDIT_LOG_PATH
+
 
 def create_authorization_decision_event(
     request: ActionRequest,
