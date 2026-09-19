@@ -163,6 +163,10 @@ class WorkflowSupervisor:
         """Return the workflow object for an id."""
         return self._get_or_raise(workflow_id)
 
+    def list_workflows(self) -> list[Workflow]:
+        """Return all known workflows (read-only projection for dashboards)."""
+        return list(self._workflows.values())
+
     def get_workflow_events(self, workflow_id: str) -> list[WorkflowEvent]:
         """Return supervisor lifecycle events correlated by workflow_id."""
         return list(self._get_or_raise(workflow_id).events)

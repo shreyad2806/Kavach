@@ -7,7 +7,7 @@ Exposes the Kavach authorization pipeline through HTTP endpoints.
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from shield.authorization.pipeline import authorize
@@ -28,12 +28,21 @@ from shield.runtime.services import get_shield_runtime
 # Application Service Dependencies
 # ============================================================================
 
-_default_identity_service = get_shield_runtime().identity_service
-
-
 def get_identity_service() -> IdentityService:
-    """Dependency provider for IdentityService."""
-    return _default_identity_service
+    """Dependency provider for IdentityService.
+
+    Resolved from the live process-wide runtime on every request so the HTTP
+    control plane and the real P1 tools always observe the SAME authoritative
+    Shield state (e.g. a quarantine applied at runtime is seen immediately).
+    """
+    return get_shield_runtime().identity_service
+
+
+# ============================================================================
+# Authorization Router (reusable by the unified local backend)
+# ============================================================================
+
+router = APIRouter()
 
 
 # ============================================================================
@@ -105,7 +114,7 @@ async def health_check() -> HealthResponse:
 # Authorize Endpoint
 # ============================================================================
 
-@app.post("/authorize", response_model=AuthorizationResult)
+@router.post("/authorize", response_model=AuthorizationResult)
 async def authorize_request(
     request: AuthorizeRequest,
     identity_service: Annotated[IdentityService, Depends(get_identity_service)],
@@ -142,3 +151,9 @@ async def authorize_request(
     except Exception as e:
         # Unexpected error
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+# The authorization router is mounted on the standalone gateway app and is also
+# reused verbatim by the unified local backend (api.main) so there is exactly
+# one implementation of /authorize.
+app.include_router(router)
