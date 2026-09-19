@@ -58,6 +58,8 @@ def _get_sandbox_result(artifact_id: str) -> SandboxReport | None:
     item = resp.get("Item")
     if not item:
         return None
+    # Strip DynamoDB-managed fields that aren't part of the model
+    item.pop("ttl", None)
     return SandboxReport.model_validate(item)
 
 
