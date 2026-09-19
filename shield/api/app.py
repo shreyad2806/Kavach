@@ -33,7 +33,7 @@ async def require_api_key(x_api_key: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 from agents.supervisor.registry import WorkflowRegistry, get_registry
-from agents.supervisor.workflow import WorkflowStatus
+from agents.supervisor.models import WorkflowStatus
 from sandbox.runtime.kavach_guard import configure_all_guards
 from shield.api.models import (
     AgentResponse,

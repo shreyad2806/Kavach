@@ -9,9 +9,11 @@
 //   - tolerates non-JSON / empty upstream bodies without misreporting as 502
 //   - consistent JSON error shape: { error, detail?, status? }
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+export const DEFAULT_TIMEOUT_MS = 15_000;
+export const WORKFLOW_START_TIMEOUT_MS = 60_000;
 
-function upstreamTimeoutMs() {
+function upstreamTimeoutMs(overrideMs) {
+  if (overrideMs) return overrideMs;
   const configured = Number(process.env.UPSTREAM_TIMEOUT_MS);
   return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_TIMEOUT_MS;
 }
@@ -30,7 +32,7 @@ function buildQuery(query = {}) {
   return serialized ? `?${serialized}` : "";
 }
 
-export async function proxyTo(path, req, res) {
+export async function proxyTo(path, req, res, { timeoutMs: overrideMs } = {}) {
   const base = process.env.PYTHON_API_URL;
   if (!base) {
     return res
@@ -39,7 +41,7 @@ export async function proxyTo(path, req, res) {
   }
 
   const url = `${base}${path}${buildQuery(req.query)}`;
-  const timeoutMs = upstreamTimeoutMs();
+  const timeoutMs = upstreamTimeoutMs(overrideMs);
 
   const headers = {};
   // Forward the API key so upstream routes that require it can authorize.

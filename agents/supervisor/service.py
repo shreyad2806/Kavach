@@ -23,7 +23,6 @@ FAILED and records the denial -- the unauthorized action is NEVER
 reported as successful and is NEVER executed.
 """
 
-import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable

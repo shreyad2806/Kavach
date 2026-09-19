@@ -2,7 +2,6 @@
 WorkflowRegistry — process-level store of WorkflowSupervisor instances.
 """
 from agents.supervisor.service import WorkflowSupervisor, WorkflowNotFoundError
-from shield.runtime.services import get_runtime
 
 
 class WorkflowRegistry:

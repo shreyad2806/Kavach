@@ -14,7 +14,7 @@ Normal MessageBus communication does NOT enter this boundary.
 
 import logging
 import uuid
-from datetime import datetime, datetime, timezone
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Callable
 

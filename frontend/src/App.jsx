@@ -11,7 +11,7 @@
  *   BottomRow       — AuthPipeline | FleetList | WorkflowPanel
  *   Footer
  *
- * Real-time: useKavach() polls /agents, /events, /incidents, /dashboard every 2 s.
+ * Real-time: useKavach() polls /agents, /events, /incidents, /dashboard every 5 s.
  */
 
 import { useState, useCallback, useRef } from "react";

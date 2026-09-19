@@ -8,6 +8,8 @@ from api.routes.events import router as events_router
 from api.routes.incidents import router as incidents_router
 from api.routes.policies import router as policies_router
 from api.routes.workflows import router as workflows_router
+from sandbox.runtime.kavach_guard import configure_all_guards
+from shield.runtime.services import get_runtime
 
 log = get_logger("kavach.api")
 
@@ -16,6 +18,7 @@ app = FastAPI(title="Kavach API", version="1.0.0")
 
 @app.on_event("startup")
 async def _startup():
+    configure_all_guards(get_runtime())
     log.info("Kavach API starting up")
 
 

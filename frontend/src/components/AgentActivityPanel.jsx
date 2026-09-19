@@ -44,13 +44,21 @@ function DecisionsChart({ buckets }) {
   );
 }
 
-// Stable sample data — no Math.random() on render
-const SAMPLE_BUCKETS = [
-  { allow: 14, deny: 2 }, { allow: 8,  deny: 5 }, { allow: 17, deny: 1 },
-  { allow: 6,  deny: 7 }, { allow: 19, deny: 3 }, { allow: 11, deny: 4 },
-  { allow: 0,  deny: 0 }, { allow: 15, deny: 2 }, { allow: 9,  deny: 6 },
-  { allow: 13, deny: 1 }, { allow: 7,  deny: 8 }, { allow: 4,  deny: 3 },
-];
+// Build hourly buckets from real events (last 12 hours)
+function buildBuckets(events) {
+  const now = Date.now();
+  const buckets = Array.from({ length: 12 }, () => ({ allow: 0, deny: 0 }));
+  for (const e of events) {
+    const age = now - new Date(e.timestamp).getTime();
+    const hourIdx = Math.floor(age / 3_600_000);
+    if (hourIdx >= 0 && hourIdx < 12) {
+      const bucket = buckets[11 - hourIdx]; // newest on the right
+      if (e.policy_decision === "ALLOW") bucket.allow++;
+      else bucket.deny++;
+    }
+  }
+  return buckets;
+}
 
 const REASON_CODE_COLORS = {
   POLICY_DENIED:        "#1fe98a",
@@ -87,6 +95,7 @@ export function AgentActivityPanel({
 
   const allowCount = events.filter((e) => e.policy_decision === "ALLOW").length;
   const denyCount  = events.filter((e) => e.policy_decision === "DENY").length;
+  const buckets = useMemo(() => buildBuckets(events), [events]);
 
   // Decision engine breakdown
   const cedarDeny   = events.filter((e) => e.reason_codes?.includes("POLICY_DENIED")).length;
@@ -146,7 +155,7 @@ export function AgentActivityPanel({
         {/* Decisions bar chart */}
         <div className="bg-panel2 border border-line rounded-tile p-3">
           <div className="text-[12px] font-semibold text-ink2 mb-2">Decisions this hour</div>
-          <DecisionsChart buckets={SAMPLE_BUCKETS} />
+          <DecisionsChart buckets={buckets} />
           <div className="text-[11px] text-ink3 mt-2 font-mono">
             <span className="text-neon">{allowCount} allowed</span>
             {" · "}
