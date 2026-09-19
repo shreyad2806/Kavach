@@ -34,5 +34,11 @@ export default {
       },
     },
   },
+  safelist: [
+    "bg-neon/5", "bg-neon/8", "bg-neon/10",
+    "bg-danger/10", "bg-amber/10",
+    "border-neon/20", "border-neon/40",
+    "border-danger/20", "border-amber/20",
+  ],
   plugins: [],
 };

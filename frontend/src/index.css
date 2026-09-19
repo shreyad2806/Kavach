@@ -31,7 +31,7 @@ body::before {
   opacity: .5;
 }
 
-#root { position: relative; z-index: 1; }
+#root { position: relative; z-index: 1; display: flex; min-height: 100vh; }
 
 /* Tabular numbers everywhere mono is used */
 .font-mono, [class*="font-mono"] {
