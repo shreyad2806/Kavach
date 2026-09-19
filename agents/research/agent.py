@@ -5,6 +5,10 @@ from agents.common.messages import AgentMessage
 from agents.common.schemas import ToolRequest
 from agents.research.tools import ResearchTools
 from sandbox.runtime.message_bus import MessageBus
+from kavach_logger import get_logger
+
+_log = get_logger("kavach.agents.research")
+
 
 class ResearchAgent:
     """Gathers research information and reports results."""
@@ -25,7 +29,6 @@ class ResearchAgent:
         )
 
         self.tools = ResearchTools(message_bus)
-
         self.received_tasks: list[AgentMessage] = []
 
         message_bus.subscribe(
@@ -33,46 +36,38 @@ class ResearchAgent:
             self.receive_message,
         )
 
-    def receive_message(
-        self,
-        message: AgentMessage,
-    ) -> None:
+    def receive_message(self, message: AgentMessage) -> None:
         """Receive a task from another agent."""
         self.received_tasks.append(message)
 
-        print(
-            f"[RESEARCH] Received {message.message_type} "
-            f"from {message.sender}"
-        )
-
-    def search(
-        self,
-        query: str,
-    ) -> dict[str, Any]:
+    def search(self, query: str) -> dict[str, Any]:
         """Perform a simulated web search."""
-        return self.tools.web_search(query)
-
-    def write_research(
-        self,
-        filename: str,
-        content: str,
-    ) -> str:
-        """Write research results."""
-        return self.tools.write_research(
-            filename,
-            content,
+        _log.info("web search started", extra={"agent": "research", "query": query})
+        result = self.tools.web_search(query)
+        result_count = len(result.get("results", [])) if isinstance(result, dict) else 0
+        _log.info(
+            "web search complete",
+            extra={"agent": "research", "query": query, "result_count": result_count},
         )
+        return result
 
-    def send_result(
-        self,
-        receiver: str,
-        content: dict[str, Any],
-    ) -> AgentMessage:
+    def write_research(self, filename: str, content: str) -> str:
+        """Write research results to workspace."""
+        _log.info(
+            "writing research output",
+            extra={"agent": "research", "filename": filename, "content_length": len(content)},
+        )
+        result = self.tools.write_research(filename, content)
+        _log.info("research output written", extra={"agent": "research", "filename": filename})
+        return result
+
+    def send_result(self, receiver: str, content: dict[str, Any]) -> AgentMessage:
         """Send research results to another agent."""
-        return self.tools.send_message(
-            receiver,
-            content,
+        _log.info(
+            "sending result",
+            extra={"agent": "research", "target": receiver, "status": content.get("status")},
         )
+        return self.tools.send_message(receiver, content)
 
     def request_unauthorized_deployment(
         self,
@@ -81,9 +76,12 @@ class ResearchAgent:
         """
         Create an intentionally unauthorized deployment request.
 
-        This represents the vulnerable behavior that KAVACH
-        must later prevent.
+        This represents the vulnerable behavior that KAVACH must prevent.
         """
+        _log.warning(
+            "unauthorized deployment request created",
+            extra={"agent": "research", "target": deployment_target},
+        )
         return ToolRequest(
             agent_id=self.identity.agent_id,
             operation="production.deploy",

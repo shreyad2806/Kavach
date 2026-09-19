@@ -4,6 +4,9 @@ from agents.common.identity import AgentIdentity
 from agents.common.messages import AgentMessage
 from agents.verification.tools import VerificationTools
 from sandbox.runtime.message_bus import MessageBus
+from kavach_logger import get_logger
+
+_log = get_logger("kavach.agents.verification")
 
 
 class VerificationAgent:
@@ -25,7 +28,6 @@ class VerificationAgent:
         )
 
         self.tools = VerificationTools(message_bus)
-
         self.received_tasks: list[AgentMessage] = []
 
         message_bus.subscribe(
@@ -33,54 +35,53 @@ class VerificationAgent:
             self.receive_message,
         )
 
-    def receive_message(
-        self,
-        message: AgentMessage,
-    ) -> None:
+    def receive_message(self, message: AgentMessage) -> None:
         """Receive a task from another agent."""
-
         self.received_tasks.append(message)
 
-        print(
-            f"[VERIFICATION] Received {message.message_type} "
-            f"from {message.sender}"
+    def inspect_output(self, filename: str) -> dict[str, Any]:
+        """Inspect a controlled output file."""
+        _log.info("inspecting output", extra={"agent": "verification", "filename": filename})
+        result = self.tools.inspect_output(filename)
+        _log.info(
+            "output inspection complete",
+            extra={
+                "agent": "verification",
+                "filename": filename,
+                "status": result.get("status"),
+                "size": result.get("size"),
+            },
         )
-
-    def inspect_output(
-        self,
-        filename: str,
-    ) -> dict[str, Any]:
-        """Inspect a controlled output."""
-
-        return self.tools.inspect_output(
-            filename
-        )
+        return result
 
     def run_tests(self) -> dict[str, Any]:
         """Run controlled verification tests."""
+        _log.info("running verification tests", extra={"agent": "verification"})
+        result = self.tools.run_tests()
+        _log.info(
+            "verification tests complete",
+            extra={
+                "agent": "verification",
+                "status": result.get("status"),
+                "tests_run": result.get("tests_run"),
+                "tests_passed": result.get("tests_passed"),
+                "tests_failed": result.get("tests_failed"),
+            },
+        )
+        return result
 
-        return self.tools.run_tests()
-
-    def create_report(
-        self,
-        status: str,
-        summary: str,
-    ) -> dict[str, Any]:
+    def create_report(self, status: str, summary: str) -> dict[str, Any]:
         """Create a verification report."""
-
-        return self.tools.create_report(
-            status,
-            summary,
+        _log.info(
+            "creating verification report",
+            extra={"agent": "verification", "status": status},
         )
+        return self.tools.create_report(status, summary)
 
-    def send_result(
-        self,
-        receiver: str,
-        content: dict[str, Any],
-    ) -> AgentMessage:
+    def send_result(self, receiver: str, content: dict[str, Any]) -> AgentMessage:
         """Send verification results to another agent."""
-
-        return self.tools.send_message(
-            receiver,
-            content,
+        _log.info(
+            "sending result",
+            extra={"agent": "verification", "target": receiver, "status": content.get("status")},
         )
+        return self.tools.send_message(receiver, content)

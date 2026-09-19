@@ -7,8 +7,9 @@ import logging
 from agents.common.messages import AgentMessage
 from agents.common.schemas import SecurityEvent
 from sandbox.runtime.event_logger import EventLogger
+from kavach_logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("kavach.sandbox.message_bus")
 
 
 # ============================================================================
@@ -116,6 +117,10 @@ class MessageBus:
                 metadata={"content_type": message.message_type}
             )
             self.event_logger.log(event)
+            logger.warning(
+                "communication denied",
+                extra={"from": message.sender, "to": message.receiver, "message_type": message.message_type},
+            )
             raise CommunicationDeniedError(
                 f"Communication from {message.sender} to {message.receiver} is not allowed."
             )

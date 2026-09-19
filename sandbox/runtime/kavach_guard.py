@@ -31,11 +31,9 @@ from shield.gateway.models import (
 from shield.identity.models import AgentId
 from shield.provenance.models import Provenance
 from shield.runtime.services import get_runtime as get_shield_runtime
+from kavach_logger import get_logger
 
-logger = logging.getLogger(__name__)
-
-# Dedicated Kavach security logger — separate from application logs
-_kavach_security = logging.getLogger("kavach.security")
+logger = get_logger("kavach.sandbox.kavach_guard")
 
 
 # ============================================================================
@@ -229,76 +227,23 @@ class KavachGuard:
 
             result = authorize(request, **kwargs)
             self._authorization_calls.append(result)
-
-            # Structured security logging
-            self._log_result(request, result)
-
             return result
 
         except KavachDeniedError:
             raise
         except Exception as exc:
-            logger.error("Kavach authorization infrastructure failure: %s", exc)
+            logger.error(
+                "authorization boundary failure",
+                extra={
+                    "agent": p1_source_agent,
+                    "action": action.value,
+                    "error": str(exc),
+                },
+                exc_info=True,
+            )
             raise KavachGuardError(
                 f"Kavach enforcement boundary failed: {exc}"
             ) from exc
-
-    def _log_result(self, request: ActionRequest, result: AuthorizationResult) -> None:
-        """Emit structured human-readable security log for every authorization."""
-        checks = result.checks
-        decision_char = "[PASS]" if result.decision == AuthorizationDecision.ALLOW else "[FAIL]"
-        decision_label = result.decision.value
-
-        lines = [
-            "[KAVACH] REQUEST",
-            f"  request_id = {request.request_id}",
-            f"  source     = {request.source_agent.value}",
-            f"  target     = {request.target_agent.value}",
-            f"  action     = {request.action.value}",
-            f"  resource   = {request.resource.value}",
-            f"  capability = {request.capability.value}",
-            "",
-            "[KAVACH] PIPELINE",
-            f"  Identity      {self._status_icon(checks.identity)} {checks.identity.value}",
-            f"  Agent State   {self._state_icon(result.agent_state)} {result.agent_state.value}",
-            f"  Capability    {self._status_icon(checks.capability)} {checks.capability.value}",
-            f"  Provenance    {self._status_icon(checks.provenance)} {checks.provenance.value}",
-            f"  Cedar         {self._status_icon(checks.cedar)} {checks.cedar.value}",
-            f"  Detection     {self._detection_icon(checks.deterministic_rules)} {checks.deterministic_rules.value} risk={result.risk_score or 0}",
-            "",
-            f"[KAVACH] DECISION   {decision_char} {decision_label}",
-        ]
-
-        if result.reason_codes:
-            lines.append("")
-            lines.append("[KAVACH] REASONS")
-            for rc in result.reason_codes:
-                lines.append(f"  {rc.value}")
-
-        _kavach_security.info("\n".join(lines))
-
-    @staticmethod
-    def _status_icon(status: CheckStatus) -> str:
-        if status in (CheckStatus.PASS, CheckStatus.ALLOW):
-            return "[PASS]"
-        elif status in (CheckStatus.FAIL, CheckStatus.DENY, CheckStatus.BLOCK):
-            return "[FAIL]"
-        return "[----]"
-
-    @staticmethod
-    def _state_icon(state) -> str:
-        from shield.identity.models import SecurityState
-        if state == SecurityState.ACTIVE:
-            return "[PASS]"
-        return "[FAIL]"
-
-    @staticmethod
-    def _detection_icon(status: CheckStatus) -> str:
-        if status == CheckStatus.NOT_EVALUATED:
-            return "[----]"
-        if status in (CheckStatus.PASS, CheckStatus.ALLOW):
-            return "[PASS]"
-        return "[WARN]"
 
     def protect(
         self,

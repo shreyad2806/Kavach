@@ -43,8 +43,9 @@ from shield.provenance.validator import (
 )
 from shield.incidents import INCIDENT_THRESHOLD, IncidentService
 from shield.telemetry import create_authorization_decision_event, write_event
+from kavach_logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("kavach.shield.authorization")
 
 
 def authorize(
@@ -106,6 +107,10 @@ def authorize(
         agent_state = SecurityState.TERMINATED
         risk_score = calculate_risk(reason_codes)
         result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        logger.warning(
+            "authorization denied: unknown agent",
+            extra={"request_id": request.request_id, "source_agent": request.source_agent.value, "action": request.action.value, "decision": "DENY", "reason": "IDENTITY_FAILURE"},
+        )
         _emit_telemetry(request, result, audit_writer)
         return result
 
@@ -125,6 +130,10 @@ def authorize(
             reason_codes.append(ReasonCode.IDENTITY_FAILURE)
         risk_score = calculate_risk(reason_codes)
         result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        logger.warning(
+            "authorization denied: agent quarantined or terminated",
+            extra={"request_id": request.request_id, "source_agent": request.source_agent.value, "state": agent_identity.state.value, "decision": "DENY"},
+        )
         _emit_telemetry(request, result, audit_writer)
         return result
 
@@ -139,12 +148,20 @@ def authorize(
     )
 
     if not has_capability:
-        # Capability mismatch — critical failure
         checks.capability = CheckStatus.FAIL
         decision = AuthorizationDecision.DENY
         reason_codes.append(ReasonCode.CAPABILITY_MISMATCH)
         risk_score = calculate_risk(reason_codes)
         result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        logger.warning(
+            "authorization denied: capability mismatch",
+            extra={
+                "request_id": request.request_id,
+                "source_agent": request.source_agent.value,
+                "capability": request.capability.value,
+                "decision": "DENY",
+            },
+        )
         _emit_telemetry(request, result, audit_writer)
         return result
 
@@ -156,13 +173,21 @@ def authorize(
     provenance_result: ProvenanceValidationResult = validate_provenance(request)
 
     if not provenance_result.valid:
-        # Invalid provenance — critical failure
         checks.provenance = CheckStatus.FAIL
         decision = AuthorizationDecision.DENY
         if provenance_result.reason_code:
             reason_codes.append(provenance_result.reason_code)
         risk_score = calculate_risk(reason_codes)
         result = _build_result(request, decision, reason_codes, checks, agent_state, risk_score)
+        logger.warning(
+            "authorization denied: invalid provenance",
+            extra={
+                "request_id": request.request_id,
+                "source_agent": request.source_agent.value,
+                "reason": provenance_result.reason_code.value if provenance_result.reason_code else None,
+                "decision": "DENY",
+            },
+        )
         _emit_telemetry(request, result, audit_writer)
         return result
 
@@ -174,12 +199,18 @@ def authorize(
     cedar_decision = cedar_adapter.evaluate(request)
 
     if cedar_decision == AuthorizationDecision.DENY:
-        # Cedar denied — critical failure, NEVER overridden
         checks.cedar = CheckStatus.DENY
         decision = AuthorizationDecision.DENY
         reason_codes.append(ReasonCode.POLICY_DENIED)
-        # Cedar DENY short-circuits deterministic rules (remains NOT_EVALUATED)
-        # but proceeds to detection for signal enrichment and risk scoring
+        logger.warning(
+            "authorization denied: Cedar policy",
+            extra={
+                "request_id": request.request_id,
+                "source_agent": request.source_agent.value,
+                "action": request.action.value,
+                "decision": "DENY",
+            },
+        )
     else:
         checks.cedar = CheckStatus.ALLOW
 

@@ -4,6 +4,9 @@ from agents.common.identity import AgentIdentity
 from agents.common.messages import AgentMessage
 from agents.deployment.tools import DeploymentTools
 from sandbox.runtime.message_bus import MessageBus
+from kavach_logger import get_logger
+
+_log = get_logger("kavach.agents.deployment")
 
 
 class DeploymentAgent:
@@ -25,7 +28,6 @@ class DeploymentAgent:
         )
 
         self.tools = DeploymentTools(message_bus)
-
         self.received_tasks: list[AgentMessage] = []
 
         message_bus.subscribe(
@@ -33,57 +35,60 @@ class DeploymentAgent:
             self.receive_message,
         )
 
-    def receive_message(
-        self,
-        message: AgentMessage,
-    ) -> None:
+    def receive_message(self, message: AgentMessage) -> None:
         """Receive a task from another agent."""
-
         self.received_tasks.append(message)
 
-        print(
-            f"[DEPLOYMENT] Received {message.message_type} "
-            f"from {message.sender}"
-        )
-
-    def simulate_deployment(
-        self,
-        target: str,
-    ) -> dict[str, Any]:
+    def simulate_deployment(self, target: str) -> dict[str, Any]:
         """Simulate a deployment."""
-
-        return self.tools.simulate_deployment(
-            target
+        _log.info("simulating deployment", extra={"agent": "deployment", "target": target})
+        result = self.tools.simulate_deployment(target)
+        _log.info(
+            "deployment simulation complete",
+            extra={
+                "agent": "deployment",
+                "target": target,
+                "status": result.get("status"),
+                "simulated": result.get("simulated"),
+            },
         )
+        return result
 
-    def inspect_infrastructure(
-        self,
-        target: str,
-    ) -> dict[str, Any]:
+    def inspect_infrastructure(self, target: str) -> dict[str, Any]:
         """Inspect simulated infrastructure."""
-
-        return self.tools.inspect_infrastructure(
-            target
+        _log.info(
+            "inspecting infrastructure",
+            extra={"agent": "deployment", "target": target},
         )
+        result = self.tools.inspect_infrastructure(target)
+        _log.info(
+            "infrastructure inspection complete",
+            extra={
+                "agent": "deployment",
+                "target": target,
+                "environment": result.get("environment"),
+                "status": result.get("status"),
+            },
+        )
+        return result
 
-    def deployment_status(
-        self,
-        target: str,
-    ) -> dict[str, Any]:
+    def deployment_status(self, target: str) -> dict[str, Any]:
         """Check simulated deployment status."""
-
-        return self.tools.deployment_status(
-            target
+        _log.info(
+            "checking deployment status",
+            extra={"agent": "deployment", "target": target},
         )
+        result = self.tools.deployment_status(target)
+        _log.info(
+            "deployment status retrieved",
+            extra={"agent": "deployment", "target": target, "status": result.get("status")},
+        )
+        return result
 
-    def send_result(
-        self,
-        receiver: str,
-        content: dict[str, Any],
-    ) -> AgentMessage:
+    def send_result(self, receiver: str, content: dict[str, Any]) -> AgentMessage:
         """Send deployment results to another agent."""
-
-        return self.tools.send_message(
-            receiver,
-            content,
+        _log.info(
+            "sending result",
+            extra={"agent": "deployment", "target": receiver, "status": content.get("status")},
         )
+        return self.tools.send_message(receiver, content)

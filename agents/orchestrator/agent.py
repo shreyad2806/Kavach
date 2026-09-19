@@ -4,6 +4,9 @@ from agents.common.identity import AgentIdentity
 from agents.common.messages import AgentMessage
 from agents.orchestrator.tools import OrchestratorTools
 from sandbox.runtime.message_bus import MessageBus
+from kavach_logger import get_logger
+
+_log = get_logger("kavach.agents.orchestrator")
 
 
 class OrchestratorAgent:
@@ -32,13 +35,8 @@ class OrchestratorAgent:
         )
 
     def receive_message(self, message: AgentMessage) -> None:
-        """Receive a message from another agent."""
+        """Receive a result from another agent."""
         self.received_results.append(message)
-
-        print(
-            f"[ORCHESTRATOR] Received {message.message_type} "
-            f"from {message.sender}"
-        )
 
     def delegate(
         self,
@@ -46,10 +44,16 @@ class OrchestratorAgent:
         task: dict[str, Any],
     ) -> AgentMessage:
         """Delegate a task to another agent."""
-        return self.tools.delegate_task(
-            receiver=receiver,
-            task=task,
+        _log.info(
+            "delegating task",
+            extra={"agent": "orchestrator", "target": receiver, "task_keys": list(task.keys())},
         )
+        result = self.tools.delegate_task(receiver=receiver, task=task)
+        _log.info(
+            "task delegated",
+            extra={"agent": "orchestrator", "target": receiver, "message_id": result.message_id},
+        )
+        return result
 
     def get_results(self) -> list[AgentMessage]:
         """Return results received by the Orchestrator."""

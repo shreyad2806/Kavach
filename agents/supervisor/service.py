@@ -43,8 +43,9 @@ from agents.supervisor.models import (
 )
 from sandbox.runtime.message_bus import MessageBus
 from sandbox.runtime.kavach_guard import KavachDeniedError
+from kavach_logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("kavach.agents.supervisor")
 
 
 class WorkflowNotFoundError(KeyError):
@@ -82,6 +83,7 @@ class WorkflowSupervisor:
         self._record_event(
             workflow, WorkflowEventType.WORKFLOW_CREATED, detail={"task": task}
         )
+        logger.info("workflow created", extra={"workflow_id": workflow_id, "task": task})
         return workflow_id
 
     def start_workflow(self, workflow_id: str) -> Workflow:
@@ -99,6 +101,7 @@ class WorkflowSupervisor:
         workflow.status = WorkflowStatus.RUNNING
         workflow.started_at = datetime.now(timezone.utc)
         self._record_event(workflow, WorkflowEventType.WORKFLOW_STARTED)
+        logger.info("workflow started", extra={"workflow_id": workflow_id, "task": workflow.task})
 
         try:
             self._execute(workflow)
@@ -113,6 +116,10 @@ class WorkflowSupervisor:
             workflow.error = self._describe_denial(exc)
             workflow.result = self._denial_result(exc)
             workflow.completed_at = datetime.now(timezone.utc)
+            logger.warning(
+                "workflow blocked by Kavach",
+                extra={"workflow_id": workflow_id, "reason": workflow.error, "kavach_denied": True},
+            )
             self._record_event(
                 workflow,
                 WorkflowEventType.WORKFLOW_FAILED,
@@ -128,6 +135,11 @@ class WorkflowSupervisor:
             workflow.status = WorkflowStatus.FAILED
             workflow.error = f"{type(exc).__name__}: {exc}"
             workflow.completed_at = datetime.now(timezone.utc)
+            logger.error(
+                "workflow failed",
+                extra={"workflow_id": workflow_id, "error": workflow.error},
+                exc_info=True,
+            )
             self._record_event(
                 workflow,
                 WorkflowEventType.WORKFLOW_FAILED,
@@ -138,6 +150,7 @@ class WorkflowSupervisor:
             workflow.status = WorkflowStatus.COMPLETED
             workflow.completed_at = datetime.now(timezone.utc)
             self._record_event(workflow, WorkflowEventType.WORKFLOW_COMPLETED)
+            logger.info("workflow completed", extra={"workflow_id": workflow_id, "task": workflow.task})
 
         return workflow
 
@@ -283,11 +296,12 @@ class WorkflowSupervisor:
     ) -> PhaseRun:
         """Begin a phase; raise _WorkflowStopped if a stop was requested."""
         if stop_check is not None and stop_check():
-            logger.info("Workflow %s stopping before phase %s", workflow.workflow_id, agent)
+            logger.info("workflow stopping before phase", extra={"workflow_id": workflow.workflow_id, "agent": agent})
             raise _WorkflowStopped()
         workflow.current_agent = agent
         phase = PhaseRun(agent=agent)
         workflow.phases.append(phase)
+        logger.info("phase started", extra={"workflow_id": workflow.workflow_id, "agent": agent})
         self._record_event(workflow, WorkflowEventType.PHASE_STARTED, agent=agent)
         return phase
 
@@ -296,6 +310,7 @@ class WorkflowSupervisor:
         if phase is not None and phase.agent == agent and phase.completed_at is None:
             phase.status = WorkflowStatus.COMPLETED
             phase.completed_at = datetime.now(timezone.utc)
+        logger.info("phase completed", extra={"workflow_id": workflow.workflow_id, "agent": agent})
         self._record_event(workflow, WorkflowEventType.PHASE_COMPLETED, agent=agent)
         workflow.current_agent = None
 

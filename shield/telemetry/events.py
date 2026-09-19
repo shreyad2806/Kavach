@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from enum import Enum
+import logging
 import os
 from pathlib import Path
 import uuid
@@ -14,6 +15,9 @@ from shield.gateway.models import (
     ResourceName,
 )
 from shield.identity.models import AgentId
+from kavach_logger import get_logger
+
+_audit_log = get_logger("kavach.audit")
 
 
 class EventType(str, Enum):
@@ -90,16 +94,6 @@ class SecurityEvent(BaseModel):
 # Audit Log Sink & Helper Functions
 # ============================================================================
 
-DEFAULT_AUDIT_LOG_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "kavach" / "audit.log"
-
-
-def get_audit_log_path() -> Path:
-    """Return the configured audit log file path."""
-    env_path = os.environ.get("KAVACH_AUDIT_LOG_PATH")
-    if env_path:
-        return Path(env_path)
-    return DEFAULT_AUDIT_LOG_PATH
-
 
 def create_authorization_decision_event(
     request: ActionRequest,
@@ -140,15 +134,30 @@ def write_event(
     log_path: Path | str | None = None,
 ) -> None:
     """
-    Append a single SecurityEvent as a JSON line to the audit log.
+    Emit a single SecurityEvent to the centralized audit logger.
 
-    Parameters:
-        event: SecurityEvent to record.
-        log_path: Path to audit log file. Defaults to get_audit_log_path().
+    log_path is accepted for backward compatibility with tests that inject
+    a custom path, but is ignored — the centralized logger owns the file.
     """
-    path = Path(log_path) if log_path is not None else get_audit_log_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    json_line = event.model_dump_json()
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json_line + "\n")
-        f.flush()
+    level = (
+        logging.WARNING
+        if event.policy_decision == AuthorizationDecision.DENY
+        else logging.INFO
+    )
+    _audit_log.log(
+        level,
+        "authorization_decision",
+        extra={
+            "event_id": event.event_id,
+            "event_type": event.event_type.value,
+            "source_agent": event.source_agent.value,
+            "target_agent": event.target_agent.value,
+            "request_id": event.request_id,
+            "task_id": event.task_id,
+            "action": event.action.value,
+            "resource": event.resource.value,
+            "policy_decision": event.policy_decision.value,
+            "reason_codes": [rc.value for rc in event.reason_codes],
+            "risk_score": event.risk_score,
+        },
+    )
