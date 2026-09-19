@@ -137,6 +137,7 @@ PIP_AUDIT_OUTPUT = json.dumps({
                 {
                     "id": "GHSA-j8r2-6x86-q33q",
                     "aliases": ["CVE-2023-32681"],
+                    "fix_versions": ["2.31.0"],
                     "description": "Requests forwards proxy-authorization headers to destination servers.",
                 }
             ],
@@ -156,9 +157,27 @@ def test_pip_audit_parses_findings():
 
     assert len(findings) == 1
     assert findings[0].scanner == ScannerType.PIP_AUDIT
-    assert findings[0].severity == FindingSeverity.HIGH
+    assert findings[0].severity == FindingSeverity.HIGH  # has fix_versions -> HIGH
     assert findings[0].cve_id == "CVE-2023-32681"
     assert "requests==2.28.0" in findings[0].location
+
+
+def test_pip_audit_no_fix_cve_is_critical():
+    output = json.dumps({
+        "dependencies": [{
+            "name": "pyyaml",
+            "version": "5.3.1",
+            "vulns": [{
+                "id": "PYSEC-2021-142",
+                "aliases": ["CVE-2020-14343"],
+                "fix_versions": [],
+                "description": "Arbitrary code execution.",
+            }]
+        }]
+    })
+    with patch("subprocess.run", return_value=_mock_run(output)):
+        findings = PipAuditScanner().scan("art-001", "/tmp/artifact")
+    assert findings[0].severity == FindingSeverity.CRITICAL  # no fix -> CRITICAL
 
 
 def test_pip_audit_no_vulns():

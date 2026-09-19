@@ -36,10 +36,12 @@ _STDLIB = set([
 ])
 
 
-def _severity_from_aliases(aliases: list[str]) -> FindingSeverity:
-    for alias in aliases:
-        if alias.startswith("CVE-"):
-            return FindingSeverity.HIGH
+def _severity_from_aliases(aliases: list[str], fix_versions: list[str]) -> FindingSeverity:
+    has_cve = any(a.startswith("CVE-") for a in aliases)
+    if has_cve and not fix_versions:
+        return FindingSeverity.CRITICAL  # no fix available → hard block
+    if has_cve:
+        return FindingSeverity.HIGH
     return FindingSeverity.MEDIUM
 
 
@@ -154,8 +156,9 @@ class PipAuditScanner(BaseScanner):
         for dep in raw.get("dependencies", []):
             for vuln in dep.get("vulns", []):
                 aliases = vuln.get("aliases", [])
+                fix_versions = vuln.get("fix_versions", [])
                 cve_id = next((a for a in aliases if a.startswith("CVE-")), None)
-                severity = _severity_from_aliases(aliases)
+                severity = _severity_from_aliases(aliases, fix_versions)
                 findings.append(ScanFinding(
                     artifact_id=artifact_id,
                     scanner=ScannerType.PIP_AUDIT,

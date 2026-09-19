@@ -21,9 +21,15 @@ def extract(data: bytes, source_url: str, dest_dir: str) -> str:
     dest = Path(dest_dir)
 
     if url_lower.endswith((".tar.gz", ".tgz", ".tar.bz2", ".tar")):
-        _extract_tar(data, dest)
+        try:
+            _extract_tar(data, dest)
+        except Exception:
+            _write_raw(data, source_url, dest)
     elif url_lower.endswith((".zip", ".whl")):
-        _extract_zip(data, dest)
+        try:
+            _extract_zip(data, dest)
+        except Exception:
+            _write_raw(data, source_url, dest)
     else:
         # Unknown type — write as-is and let scanners handle it
         _write_raw(data, source_url, dest)

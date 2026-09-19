@@ -15,6 +15,7 @@ import os
 import tempfile
 
 from scanner.agent.scanner_agent import explain_scan
+from scanner.gateway.extractor import extract
 from scanner.logger import get_logger
 from scanner.models.artifact import ArtifactStatus
 from scanner.sandbox.runner import run as sandbox_run
@@ -52,13 +53,11 @@ def _ok(payload: dict) -> dict:
     return {"status": "OK", **payload}
 
 
-def _write_artifact(tmpdir: str, data: bytes) -> str:
-    """Write artifact bytes to a temp subdirectory, return the path."""
+def _write_artifact(tmpdir: str, data: bytes, source_url: str) -> str:
+    """Extract artifact bytes into a temp subdirectory, return the path."""
     artifact_path = os.path.join(tmpdir, "artifact")
     os.makedirs(artifact_path)
-    with open(os.path.join(artifact_path, "artifact.py"), "wb") as f:
-        f.write(data)
-    return artifact_path
+    return extract(data, source_url, artifact_path)
 
 
 def _get_status_url(artifact_id: str) -> str:
@@ -95,7 +94,7 @@ def handler(event: dict, context) -> dict:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             data = download_from_quarantine(artifact_id, record.source_url)
-            artifact_path = _write_artifact(tmpdir, data)
+            artifact_path = _write_artifact(tmpdir, data, record.source_url)
             scanner = (
                 GitleaksScanner(source_url=record.source_url)
                 if scanner_name == "gitleaks"
