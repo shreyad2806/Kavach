@@ -2,5 +2,152 @@
 @tailwind components;
 @tailwind utilities;
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: Manrope, ui-sans-serif, system-ui, sans-serif; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  background:
+    radial-gradient(900px 520px at 82% -6%, rgba(31,233,138,.10), transparent 62%),
+    radial-gradient(700px 420px at -6% 32%, rgba(31,233,138,.07), transparent 60%),
+    #04120d;
+  color: #e8fff4;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grid texture overlay — fixed, non-interactive */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(31,233,138,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31,233,138,.035) 1px, transparent 1px);
+  background-size: 52px 52px;
+  -webkit-mask-image: radial-gradient(1100px 700px at 70% 10%, #000 20%, transparent 78%);
+  mask-image: radial-gradient(1100px 700px at 70% 10%, #000 20%, transparent 78%);
+  opacity: .5;
+}
+
+#root { position: relative; z-index: 1; }
+
+/* Tabular numbers everywhere mono is used */
+.font-mono, [class*="font-mono"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Keyboard focus ring */
+:focus-visible {
+  outline: 2px solid #1fe98a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Responsive grid overrides ── */
+
+/* Metrics row: 6-col → 3-col → 1-col */
+.metrics-grid {
+  grid-template-columns: 62px 1.15fr 0.85fr 128px 0.9fr 1.1fr;
+}
+@media (max-width: 1180px) {
+  .metrics-grid {
+    grid-template-columns: 62px 1fr 1fr;
+  }
+  .metrics-grid > :nth-child(4),
+  .metrics-grid > :nth-child(5),
+  .metrics-grid > :nth-child(6) {
+    grid-column: span 1;
+  }
+}
+@media (max-width: 760px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  .metrics-grid > :first-child {
+    /* rail becomes horizontal strip */
+    flex-direction: row !important;
+  }
+}
+
+/* Analysis row: 3-col → 1-col */
+.analysis-grid {
+  grid-template-columns: 0.9fr 1.9fr 1fr;
+}
+@media (max-width: 1100px) {
+  .analysis-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .analysis-grid > :nth-child(3) {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 760px) {
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+  .analysis-grid > * {
+    grid-column: span 1 !important;
+  }
+}
+
+/* Pipeline row: 2-col → 1-col */
+.pipeline-grid {
+  grid-template-columns: 1.6fr 1fr;
+}
+@media (max-width: 900px) {
+  .pipeline-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Auth pipeline nodes: wrap to 3-across on small screens */
+@media (max-width: 760px) {
+  .pipeline-nodes {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .pipeline-nodes > * {
+    width: calc(33.33% - 8px);
+  }
+  .pipeline-connector {
+    display: none;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0a1f18; }
+::-webkit-scrollbar-thumb { background: #17493a; border-radius: 2px; }
+
+/* Panel top-light overlay — applied via .panel-light class */
+.panel-light {
+  background-image: linear-gradient(160deg, rgba(255,255,255,.028), transparent);
+}
+
+/* Neon glow utilities */
+.glow-neon  { box-shadow: 0 0 12px rgba(31,233,138,.25); }
+.glow-danger { box-shadow: 0 0 12px rgba(255,77,94,.25); }
+.glow-amber  { box-shadow: 0 0 12px rgba(255,192,70,.22); }
+
+/* Pulse animation for status dots */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .35; }
+}
+.pulse { animation: pulse-dot 2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; }
+}
