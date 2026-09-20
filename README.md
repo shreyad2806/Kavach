@@ -9,12 +9,26 @@ Kavach operates at two layers:
 - **Scanner** — pre-execution artifact scanning. Every third-party package, repository, or file an agent wants to use is scanned before it runs.
 - **Shield** — runtime monitoring. Every action an agent takes at runtime is intercepted, verified against policy, and either allowed or blocked.
 
+A live operator dashboard and artifact scanner UI are included for real-time visibility into agent activity, security decisions, and scan results.
+
 ---
 
 ## Architecture
 
 ```
-External Artifact (PyPI / GitHub / GitLab / Bitbucket / zip)
+Browser (React SPA)
+        │
+        ▼
+  CloudFront + S3
+        │
+        ▼
+  Node BFF (Express)  ──────────────────────────────────────┐
+        │                                                    │
+        ▼                                                    │
+  Python API (FastAPI / Lambda)                             │
+  ├── Shield runtime  (authorization, quarantine)           │
+  ├── Multi-agent workflow supervisor                       │
+  └── Scanner gateway  ─────────────────────────────────────┘
         │
         ▼
   POST /artifacts/scan  (API Gateway + Lambda)
@@ -52,11 +66,11 @@ External Artifact (PyPI / GitHub / GitLab / Bitbucket / zip)
 
 ---
 
-## Scanner Agent
+## Components
 
-The scanner agent is the pre-execution security layer. It accepts any artifact URL, runs it through a multi-stage pipeline, and produces a deterministic verdict before any agent is allowed to use it.
+### Scanner
 
-### Pipeline Stages
+Pre-execution artifact scanning. Accepts any artifact URL, runs it through a multi-stage pipeline, and produces a deterministic verdict before any agent is allowed to use it.
 
 | Stage | What happens |
 |---|---|
@@ -66,31 +80,13 @@ The scanner agent is the pre-execution security layer. It accepts any artifact U
 | Verdict | Deterministic risk score (0–100), hard block rules, APPROVED/BLOCKED/REVIEW decision |
 | Agent report | Claude 3 Haiku explains the verdict in plain English for operators |
 
-### Static Scanners
-
+**Static scanners:**
 - **Bandit** — Python security issues: eval/exec abuse, weak crypto, subprocess misuse, hardcoded passwords
-- **Semgrep** — Language-aware pattern matching for Python, JavaScript, TypeScript, Go, Java, Ruby, Shell. Rules are bundled into the Docker image at build time — no internet needed at runtime
-- **pip-audit** — Python CVE scanning via PyPI Advisory Database. Falls back from requirements.txt → setup.py → AST import extraction
-- **Gitleaks** — Secret and credential detection. Clones full git history (depth 50) for GitHub, GitLab, and Bitbucket URLss
+- **Semgrep** — Language-aware pattern matching for Python, JavaScript, TypeScript, Go, Java, Ruby, Shell. Rules bundled into the Docker image at build time — no internet needed at runtime
+- **pip-audit** — Python CVE scanning via PyPI Advisory Database
+- **Gitleaks** — Secret and credential detection. Clones full git history (depth 50) for GitHub/GitLab/Bitbucket URLs
 
-### Dynamic Sandbox
-
-The Fargate sandbox runs the artifact in a fully isolated container:
-
-- Private VPC subnet with no internet gateway
-- Security group with zero outbound rules
-- Read-only root filesystem
-- Non-root user (UID 65534 / nobody)
-- 0.25 vCPU / 512 MB hard limits
-- 30-second execution timeout
-
-Supports: Python (strace), JavaScript/Node.js (strace), Shell scripts (bash+strace), ELF binaries (strings inspection).
-
-Detects 11 behavioral event types: `NETWORK_CONNECT`, `DNS_LOOKUP`, `UNEXPECTED_DOWNLOAD`, `FILE_READ`, `FILE_WRITE`, `FILE_DELETE`, `PROCESS_SPAWN`, `SHELL_EXECUTION`, `SECRET_ACCESS`, `ENV_READ`, `PRIVILEGE_ESCALATION`.
-
-### Verdict Engine
-
-Fully deterministic — no LLM on the critical path.
+**Verdict thresholds:**
 
 | Risk score | Level | Decision |
 |---|---|---|
@@ -104,30 +100,65 @@ Hard block overrides (score-independent):
 - Any CRITICAL CVE from pip-audit → BLOCKED
 - Sandbox `SECRET_ACCESS`, `SHELL_EXECUTION`, or `PRIVILEGE_ESCALATION` → BLOCKED
 
-### Security Features
+---
 
-- **SSRF protection** — all artifact URLs are resolved via DNS before download; private IP ranges, localhost, and the AWS metadata endpoint (`169.254.169.254`) are blocked
-- **Inter-run comparison** — SHA-256 hash is compared against the previous scan of the same URL; a hash change injects a HIGH finding
-- **Path traversal protection** — archive extraction strips `../` and absolute paths
-- **Prompt injection hardening** — the Bedrock agent treats all finding content as untrusted data and cannot modify the verdict
+### Shield
+
+Runtime monitoring and zero-trust enforcement for the multi-agent system.
+
+- **Authorization pipeline** — every agent action passes through KavachGuard → authorize() before execution
+- **Identity service** — tracks agent state (ACTIVE, QUARANTINED, REVOKED)
+- **Capability registry** — each agent has a declared capability set; cross-capability actions are denied
+- **Quarantine service** — compromised agents are isolated; all subsequent actions are denied
+- **Incident service** — security events are recorded and surfaced in the dashboard
+- **Cedar policy engine** — declarative allow/deny policies per agent and action type
+- **Telemetry** — every authorization decision is emitted as a structured event with workflow correlation
 
 ---
 
-## AWS Services
+### Multi-Agent Workflow
 
-| Service | Role |
+Five agents orchestrated by a supervisor:
+
+| Agent | Role |
 |---|---|
-| API Gateway | `POST /artifacts/scan` and `GET /artifacts/{id}` endpoints with API key auth |
-| Lambda (container image) | Gateway, status, and pipeline stage handlers |
-| Step Functions | Orchestrates parallel static scan → sandbox → verdict |
-| S3 | Quarantine prefix (7-day auto-delete) and approved prefix |
-| DynamoDB | Artifacts, Findings, Verdicts, SandboxResults tables |
-| ECS Fargate | Isolated sandbox container execution |
-| ECR | Lambda scanner image and Fargate sandbox image |
-| Bedrock | Claude 3 Haiku for plain-English scan reports |
-| CloudWatch Logs | Structured JSON logs from Lambda and Fargate, filterable by `artifact_id` |
-| IAM | Least-privilege roles — sandbox task role can only read quarantine S3 and write sandbox results |
-| VPC | Private subnet + zero-outbound security group for sandbox isolation |
+| Orchestrator | Delegates tasks, receives results |
+| Research | Web search and document read (read-only) |
+| Coding | File read/write, test execution |
+| Verification | Test runner, quality gate |
+| Deployment | Staging preview only — production requires explicit authorization |
+
+Task routing is automatic: the supervisor classifies the task (research / coding / deployment) and runs only the agents the task needs. Every agent action goes through KavachGuard — a Kavach DENY stops the workflow and records the denial without executing the action.
+
+---
+
+### API
+
+FastAPI control plane exposing all Shield, Scanner, and workflow operations over HTTP. Runs locally via uvicorn and on AWS via Lambda (Mangum adapter).
+
+| Route | Description |
+|---|---|
+| `POST /artifacts/scan` | Submit artifact for scanning |
+| `GET /artifacts/{id}` | Poll scan status and results |
+| `POST /workflows` | Create a workflow |
+| `POST /workflows/{id}/start` | Start workflow execution |
+| `GET /workflows/{id}` | Poll workflow status |
+| `POST /workflows/demo/reset` | Reset demo session |
+| `POST /workflows/simulation/attack` | Simulate capability escalation attack |
+| `GET /agents` | List all agents and their states |
+| `GET /incidents` | List security incidents |
+| `GET /dashboard` | Aggregated dashboard metrics |
+| `GET /events` | Authorization event stream |
+| `GET /policies` | Active Cedar policies |
+
+---
+
+### Frontend
+
+React + Tailwind operator dashboard with two pages:
+
+- **Dashboard** — live agent fleet status, authorization event stream, security pipeline visualization, attack simulation
+- **Artifact Scanner** — submit any URL for scanning, poll results, view findings by severity
 
 ---
 
@@ -135,176 +166,163 @@ Hard block overrides (score-independent):
 
 ```
 kavach/
-├── scanner/                  # Pre-execution artifact scanning (this team)
+├── agents/                   # Multi-agent workflow
+│   ├── coding/               # Coding agent
+│   ├── deployment/           # Deployment agent
+│   ├── orchestrator/         # Orchestrator agent
+│   ├── research/             # Research agent
+│   ├── supervisor/           # Workflow lifecycle, task routing
+│   └── verification/         # Verification agent
+├── api/                      # FastAPI control plane
+│   ├── middleware/           # Auth, validation
+│   ├── routes/               # All HTTP route handlers
+│   ├── lambda_handler.py     # Mangum adapter for Lambda
+│   └── main.py               # App entrypoint
+├── backend/                  # Node.js BFF (Express proxy)
+│   ├── src/
+│   │   ├── routes/           # Per-resource proxy routes
+│   │   ├── middleware/       # Auth middleware
+│   │   ├── proxy.js          # Upstream proxy with timeout handling
+│   │   └── index.js          # Server entrypoint
+│   └── Dockerfile            # Container image for App Runner
+├── frontend/                 # React operator dashboard
+│   └── src/
+│       ├── components/       # UI components
+│       ├── hooks/            # useKavach, useScanner
+│       ├── pages/            # DashboardPage, ScannerPage
+│       └── App.jsx           # Shell with sidebar navigation
+├── infrastructure/
+│   ├── scanner/
+│   │   ├── template.yaml     # SAM — Scanner Lambda, Step Functions, Fargate, DynamoDB, S3
+│   │   ├── stepfunctions.json
+│   │   └── samconfig.toml
+│   └── shield/
+│       ├── template.yaml     # SAM — Shield API Lambda, AgentsTable, IncidentsTable
+│       └── samconfig.toml
+├── sandbox/                  # Local runtime sandbox
+│   └── runtime/              # KavachGuard, MessageBus, workspace
+├── scanner/                  # Scanner pipeline
 │   ├── agent/                # Bedrock/Strands agent — explains verdicts
-│   ├── gateway/              # HTTP handler, downloader, extractor, status endpoint
-│   ├── models/               # Pydantic models: artifact, finding, verdict, sandbox
+│   ├── gateway/              # Downloader, extractor, handler, status
+│   ├── models/               # Pydantic models
 │   ├── pipeline/             # Step Functions stage handler
 │   ├── sandbox/              # Fargate runner, observer, signals
 │   │   └── container/        # Fargate container image (Dockerfile + entrypoint)
 │   ├── scanners/             # Bandit, Semgrep, pip-audit, Gitleaks wrappers
 │   ├── storage/              # DynamoDB and S3 helpers
-│   ├── verdict/              # Scoring engine and verdict logic
-│   └── logger.py             # Structured JSON logger
-├── shield/                   # Runtime monitoring (separate team)
-├── agents/                   # Multi-agent workflow definitions (separate team)
-├── api/                      # Control plane REST API (separate team)
-├── infrastructure/
-│   └── scanner/
-│       ├── template.yaml     # SAM template — all scanner AWS resources
-│       └── stepfunctions.json
-├── tests/
-│   └── scanner/              # 169 tests, all passing
-├── Dockerfile                # Lambda container image
-├── requirements.txt          # Root dependencies
-└── scanner/requirements.txt  # Scanner-specific dependencies
+│   └── verdict/              # Scoring engine and verdict logic
+├── shield/                   # Shield runtime
+│   ├── authorization/        # Authorization pipeline
+│   ├── capabilities/         # Capability registry and service
+│   ├── detection/            # Anomaly detection, rules, signals
+│   ├── enforcement/          # Quarantine, revocation, kill switch
+│   ├── identity/             # Agent identity service
+│   ├── incidents/            # Incident tracking
+│   ├── policy/               # Cedar policy engine
+│   ├── provenance/           # Request provenance validation
+│   ├── runtime/              # Shared ShieldRuntime singleton
+│   └── telemetry/            # Authorization event emission
+├── tests/                    # Full test suite
+├── Dockerfile                # Lambda container image (scanner + API)
+└── requirements.txt
 ```
 
 ---
 
-## Setup
+## AWS Services
+
+| Service | Role |
+|---|---|
+| API Gateway | Scanner and Shield HTTP endpoints with API key auth |
+| Lambda (container image) | Gateway, pipeline, status, and Shield API handlers |
+| Step Functions | Orchestrates parallel static scan → sandbox → verdict |
+| S3 | Quarantine prefix (7-day auto-delete) and approved prefix |
+| DynamoDB | Artifacts, Findings, Verdicts, SandboxResults, Agents, Incidents tables |
+| ECS Fargate | Isolated sandbox container execution |
+| ECR | Lambda scanner image, Fargate sandbox image, Node BFF image, API image |
+| Bedrock | Claude 3 Haiku for plain-English scan reports |
+| App Runner | Node BFF — auto-scaling, no infrastructure management |
+| CloudFront + S3 | React frontend static hosting with HTTPS |
+| CloudWatch Logs | Structured JSON logs from Lambda and Fargate, filterable by `artifact_id` |
+| IAM | Least-privilege roles per service |
+| VPC | Private subnet + zero-outbound security group for sandbox isolation |
+
+---
+
+## Local Development
 
 ### Prerequisites
 
 - Python 3.11+
+- Node.js 18+
 - Docker
-- AWS CLI + SAM CLI
-- AWS account with Bedrock model access enabled for Claude 3 Haiku
+- AWS CLI configured with credentials for ap-south-1
 
-### Local development
+### Setup
 
 ```bash
-# Clone
 git clone https://github.com/shreyad2806/Kavach.git
 cd Kavach
 
-# Install dependencies
+# Python dependencies
 pip install -r requirements.txt
 
-# Run scanner tests
-pytest tests/scanner/ -v
+# Node BFF
+cd backend && npm install
+
+# Frontend
+cd frontend && npm install
 ```
 
-### Deploy to AWS
+### Environment variables
 
-**1. Enable Bedrock model access**
+Create `.env` at the repo root:
 
-AWS Console → Bedrock → Model access → Enable Claude 3 Haiku (one-time).
+```
+AWS_DEFAULT_REGION=ap-south-1
+ARTIFACTS_TABLE=<dynamodb-table-name>
+FINDINGS_TABLE=<dynamodb-table-name>
+VERDICTS_TABLE=<dynamodb-table-name>
+SANDBOX_RESULTS_TABLE=<dynamodb-table-name>
+SCANNER_BUCKET=<s3-bucket-name>
+PIPELINE_STATE_MACHINE_ARN=<step-functions-arn>
+API_KEY=kavach-dev-key
+```
 
-**2. Create ECR repositories**
+Create `backend/.env`:
+
+```
+PORT=3001
+PYTHON_API_URL=http://localhost:8000
+API_KEY=kavach-dev-key
+FRONTEND_URL=http://localhost:5173
+UPSTREAM_TIMEOUT_MS=120000
+```
+
+Create `frontend/.env`:
+
+```
+VITE_API_KEY=kavach-dev-key
+VITE_API_URL=http://localhost:3001
+```
+
+### Run locally
 
 ```bash
-aws ecr create-repository --repository-name kavach-scanner --region ap-south-1
-aws ecr create-repository --repository-name kavach-sandbox --region ap-south-1
+# Terminal 1 — Python API
+cd Kavach
+uvicorn api.main:app --port 8000 --reload
+
+# Terminal 2 — Node BFF
+cd Kavach/backend
+npm run dev
+
+# Terminal 3 — Frontend
+cd Kavach/frontend
+npm run dev
 ```
 
-**3. Build and push container images**
-
-```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-aws ecr get-login-password --region ap-south-1 | \
-  docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com
-
-# Lambda scanner image
-docker build -t kavach-scanner .
-docker tag kavach-scanner:latest $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-scanner:latest
-docker push $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-scanner:latest
-
-# Fargate sandbox image
-docker build -t kavach-sandbox scanner/sandbox/container/
-docker tag kavach-sandbox:latest $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-sandbox:latest
-docker push $ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-sandbox:latest
-```
-
-**4. Create VPC networking for sandbox isolation**
-
-```bash
-VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --query 'Vpc.VpcId' --output text)
-SUBNET_ID=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.1.0/24 \
-  --availability-zone ap-south-1a --query 'Subnet.SubnetId' --output text)
-SG_ID=$(aws ec2 create-security-group --group-name kavach-sandbox-sg \
-  --description "Kavach sandbox — no outbound" --vpc-id $VPC_ID \
-  --query 'GroupId' --output text)
-aws ec2 revoke-security-group-egress --group-id $SG_ID \
-  --protocol -1 --port -1 --cidr 0.0.0.0/0
-```
-
-**5. Deploy with SAM**
-
-```bash
-cd infrastructure/scanner
-sam build
-sam deploy \
-  --stack-name kavach-scanner \
-  --region ap-south-1 \
-  --capabilities CAPABILITY_IAM \
-  --parameter-overrides \
-    LambdaImageUri=$ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-scanner:latest \
-    SandboxImageUri=$ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kavach-sandbox:latest \
-    PrivateSubnetId=$SUBNET_ID \
-    SandboxSecurityGroupId=$SG_ID
-```
-
-SAM outputs the API endpoint URL and API key on completion.
-
----
-
-## API
-
-All requests require the `x-api-key` header (retrieve from API Gateway console after deploy).
-
-### Submit a scan
-
-```
-POST /artifacts/scan
-Content-Type: application/json
-x-api-key: <key>
-
-{
-  "artifact_type": "python_package",
-  "source_url": "https://files.pythonhosted.org/packages/.../requests-2.28.0.tar.gz",
-  "requested_by": "agent-deployer-01"
-}
-```
-
-Response `201`:
-```json
-{
-  "artifact_id": "art-a1b2c3d4e5f6",
-  "status": "QUEUED",
-  "sha256": "e3b0c44298fc1c149afb..."
-}
-```
-
-Supported `artifact_type` values: `python_package`, `github_repo`, `generic_file`
-
-### Poll for results
-
-```
-GET /artifacts/{artifact_id}
-x-api-key: <key>
-```
-
-Response `200` (completed scan):
-```json
-{
-  "artifact_id": "art-a1b2c3d4e5f6",
-  "status": "BLOCKED",
-  "sha256": "e3b0c44...",
-  "scan_count": 1,
-  "total_findings": 3,
-  "finding_counts": { "CRITICAL": 1, "HIGH": 2 },
-  "verdict": {
-    "decision": "BLOCKED",
-    "risk_level": "CRITICAL",
-    "risk_score": 85,
-    "blocked_reasons": ["Secret detected by gitleaks: aws-access-token"],
-    "scanner_verdicts": { "gitleaks": "CRITICAL", "bandit": "HIGH" }
-  },
-  "agent_report": "This artifact was blocked because a hardcoded AWS access key was found..."
-}
-```
+Open `http://localhost:5173`.
 
 ---
 
@@ -314,36 +332,40 @@ Response `200` (completed scan):
 # All scanner tests
 pytest tests/scanner/ -v
 
-# Specific module
-pytest tests/scanner/test_verdict.py -v
+# All shield/authorization tests
+pytest tests/authorization/ -v
+
+# Full suite
+pytest tests/ -v
 ```
-
-169 tests, all passing. AWS services mocked via [moto](https://github.com/getmoto/moto). External tools (bandit, semgrep, gitleaks, pip-audit) mocked via `unittest.mock`.
-
----
-
-## Cost Estimate
-
-At hackathon/demo scale (~100 scans/day):
-
-| Service | Monthly cost |
-|---|---|
-| Lambda | ~$0.40 |
-| Step Functions | ~$0.18 |
-| ECS Fargate | ~$0.90 |
-| Bedrock (Claude 3.5 Haiku) | ~$1.20 |
-| DynamoDB | ~$0.25 |
-| S3 + ECR | ~$0.30 |
-| CloudWatch Logs | ~$1.00 |
-| API Gateway | ~$0.01 |
-| **Total** | **~$4.30/month** |
 
 ---
 
 ## Security Model
 
 - The verdict engine is fully deterministic. The LLM (Bedrock agent) is advisory only and cannot modify any verdict or security state.
-- The Fargate sandbox task role has exactly two permissions: `s3:GetObject` on the quarantine prefix and `dynamodb:PutItem` on the sandbox results table. Nothing else.
+- The Fargate sandbox task role has exactly two permissions: `s3:GetObject` + `s3:ListBucket` on the quarantine prefix and `dynamodb:PutItem` on the sandbox results table.
 - All artifact URLs are SSRF-checked before download. Private IP ranges and the AWS metadata endpoint are blocked.
 - Artifacts stay in the quarantine S3 prefix until explicitly approved. Agents only have access to the approved prefix.
-- All logs are structured JSON emitted to stdout. In Lambda they go to CloudWatch automatically. In Fargate via the awslogs driver. Every log entry carries `artifact_id` for full trace correlation.
+- Every agent action passes through KavachGuard → authorize() before execution. A DENY stops the action and records the incident — the unauthorized operation is never executed.
+- All logs are structured JSON. Every log entry carries `artifact_id` or `workflow_id` for full trace correlation.
+
+---
+
+## Cost Estimate
+
+At demo/hackathon scale (~100 scans/day):
+
+| Service | Monthly cost |
+|---|---|
+| Lambda | ~$0.40 |
+| Step Functions | ~$0.18 |
+| ECS Fargate | ~$0.90 |
+| Bedrock (Claude 3 Haiku) | ~$1.20 |
+| DynamoDB | ~$0.50 |
+| S3 + ECR | ~$0.30 |
+| CloudWatch Logs | ~$1.00 |
+| API Gateway | ~$0.02 |
+| App Runner (BFF) | ~$5.00 |
+| CloudFront | ~$1.00 |
+| **Total** | **~$10.50/month** |
