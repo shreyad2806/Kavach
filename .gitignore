@@ -234,3 +234,20 @@ sandbox/runtime/*.jsonl
 !.env.example
 frontend/.env.local
 backend/.env
+
+# Temp folder
+Temp/
+
+# Log files
+logs/
+
+# Sandbox runtime state
+sandbox/workspace/
+sandbox/runtime/security_events.jsonl
+
+# AWS installer files
+*.msi
+
+# Manifest files (generated)
+sandbox_manifest.json
+scanner_manifest.json
