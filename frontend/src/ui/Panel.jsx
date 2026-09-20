@@ -1,4 +1,4 @@
-// Panel — the base card container for all sections
+// Panel — base card container
 // tone: "default" | "deep" | "inset"
 export function Panel({ children, className = "", tone = "default", style = {} }) {
   const bg = tone === "deep" ? "bg-deep" : tone === "inset" ? "bg-panel2" : "bg-panel";

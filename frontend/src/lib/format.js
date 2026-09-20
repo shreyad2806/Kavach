@@ -20,9 +20,9 @@ export function riskTone(score) {
 
 // Risk score → hex color (for SVG charts)
 export function riskColor(score) {
-  if (score >= 80) return "#ff4d5e";
-  if (score >= 51) return "#ffc046";
-  return "#1fe98a";
+  if (score >= 80) return "#f87171";
+  if (score >= 51) return "#fbbf24";
+  return "#38bdf8";
 }
 
 // Agent state → badge tone

@@ -30,8 +30,8 @@ function DecisionStrip({ events }) {
           key={e.event_id || e.request_id || i}
           className="flex-1 min-w-[4px] rounded-sm"
           style={{
-            background: e.policy_decision === "ALLOW" ? "#1fe98a" : "#ff4d5e",
-            opacity: 0.8,
+            background: e.policy_decision === "ALLOW" ? "#34d399" : "#f87171",
+            opacity: 0.85,
           }}
           title={`${e.source_agent} ${e.action} → ${e.policy_decision}`}
         />
@@ -41,9 +41,9 @@ function DecisionStrip({ events }) {
 }
 
 const REASON_CODE_COLORS = {
-  POLICY_DENIED:        "#1fe98a",
-  DETERMINISTIC_RULES:  "#a7c9ba",
-  PROVENANCE_ANOMALY:   "#ffc046",
+  POLICY_DENIED:        "#38bdf8",
+  DETERMINISTIC_RULES:  "#7a9cc8",
+  PROVENANCE_ANOMALY:   "#fbbf24",
 };
 
 export function AgentActivityPanel({
@@ -147,9 +147,9 @@ export function AgentActivityPanel({
           <div className="text-[12px] font-semibold text-ink2 mb-2">Decision engine</div>
           <div className="flex flex-col gap-2">
             {[
-              { label: "Cedar policy",        count: cedarDeny,  color: "#1fe98a" },
-              { label: "Deterministic rules",  count: rulesDeny,  color: "#a7c9ba" },
-              { label: "Provenance",           count: provDeny,   color: "#ffc046" },
+              { label: "Cedar policy",        count: cedarDeny,  color: "#38bdf8" },
+              { label: "Deterministic rules",  count: rulesDeny,  color: "#7a9cc8" },
+              { label: "Provenance",           count: provDeny,   color: "#fbbf24" },
             ].map(({ label, count, color }) => (
               <div key={label} className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -191,11 +191,11 @@ export function AgentActivityPanel({
           <table className="w-full text-[12px]" role="table">
             <thead>
               <tr className="border-b border-line">
-                <th className="text-left py-2 pr-3 text-[11px] font-semibold text-ink3 w-[90px]">Time</th>
-                <th className="text-left py-2 pr-3 text-[11px] font-semibold text-ink3">Agent</th>
-                <th className="text-left py-2 pr-3 text-[11px] font-semibold text-ink3">Action</th>
-                <th className="text-left py-2 pr-3 text-[11px] font-semibold text-ink3">Resource</th>
-                <th className="text-right py-2 text-[11px] font-semibold text-ink3">Decision</th>
+                <th className="text-left py-2 pr-3 text-[10.5px] font-bold uppercase tracking-widest text-ink3 w-[80px]">Time</th>
+                <th className="text-left py-2 pr-3 text-[10.5px] font-bold uppercase tracking-widest text-ink3">Agent</th>
+                <th className="text-left py-2 pr-3 text-[10.5px] font-bold uppercase tracking-widest text-ink3">Action</th>
+                <th className="text-left py-2 pr-3 text-[10.5px] font-bold uppercase tracking-widest text-ink3">Resource</th>
+                <th className="text-right py-2 text-[10.5px] font-bold uppercase tracking-widest text-ink3">Decision</th>
               </tr>
             </thead>
             <tbody>
@@ -208,7 +208,7 @@ export function AgentActivityPanel({
                     key={e.event_id || i}
                     onClick={() => onEventSelect?.(e)}
                     className={`border-b border-line cursor-pointer transition-colors ${
-                      isSelected ? "bg-neon/5" : "hover:bg-line/50"
+                      isSelected ? "bg-neon/5 border-l-2 border-l-neon" : "hover:bg-line/40"
                     }`}
                     role="row"
                     tabIndex={0}

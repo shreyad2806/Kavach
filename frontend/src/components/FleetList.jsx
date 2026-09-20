@@ -13,10 +13,10 @@ const AGENT_ROLES = {
 };
 
 const STATE_DOT = {
-  ACTIVE:      { color: "#1fe98a", pulse: true },
-  QUARANTINED: { color: "#ff4d5e", pulse: true },
-  SUSPICIOUS:  { color: "#ffc046", pulse: false },
-  TERMINATED:  { color: "#4a6b5d", pulse: false },
+  ACTIVE:      { color: "#38bdf8", pulse: true },
+  QUARANTINED: { color: "#f87171", pulse: true },
+  SUSPICIOUS:  { color: "#fbbf24", pulse: false },
+  TERMINATED:  { color: "#1e3050", pulse: false },
 };
 
 export function FleetList({ agents = [], selectedId, onSelect }) {
@@ -39,7 +39,7 @@ export function FleetList({ agents = [], selectedId, onSelect }) {
                 key={agent.agent_id}
                 onClick={() => onSelect?.(agent.agent_id)}
                 className={`w-full flex items-center gap-3 rounded-tile px-3 py-2.5 text-left transition-colors ${
-                  isSelected ? "bg-neon/10 border border-neon/20" : "hover:bg-line border border-transparent"
+                  isSelected ? "bg-neon/5 border border-neon/20" : "hover:bg-line border border-transparent"
                 }`}
                 aria-pressed={isSelected}
               >

@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 export function Pill({ children, tone = "neutral", active = false, onClick, className = "" }) {
   const tones = {
     neon:    "bg-neon/10 text-neon border-neon/30",
+    allow:   "bg-neon/10 text-neon border-neon/30",
     danger:  "bg-danger/10 text-danger border-danger/30",
     amber:   "bg-amber/10 text-amber border-amber/30",
     dim:     "bg-dim/20 text-ink3 border-dim/30",
@@ -42,10 +43,11 @@ export function Chip({ label, onRemove }) {
   );
 }
 
-// Badge — state/status badge, tone-aware, always has text label
+// Badge — state/status badge, tone-aware
 export function Badge({ label, tone = "neutral" }) {
   const tones = {
     neon:    "bg-neon/10 text-neon border-neon/20",
+    allow:   "bg-neon/10 text-neon border-neon/20",
     danger:  "bg-danger/10 text-danger border-danger/20",
     amber:   "bg-amber/10 text-amber border-amber/20",
     dim:     "bg-dim/20 text-ink3 border-dim/20",
@@ -53,7 +55,7 @@ export function Badge({ label, tone = "neutral" }) {
   };
   return (
     <span
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ${tones[tone]}`}
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ${tones[tone] ?? tones.neutral}`}
     >
       {label}
     </span>

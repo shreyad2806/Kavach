@@ -45,10 +45,10 @@ function verdictTone(v) {
 }
 
 function riskColor(n) {
-  if (n >= 80) return "#ff4d5e";
-  if (n >= 51) return "#ffc046";
-  if (n >= 21) return "#a7c9ba";
-  return "#1fe98a";
+  if (n >= 80) return "#f87171";
+  if (n >= 51) return "#fbbf24";
+  if (n >= 21) return "#7a9cc8";
+  return "#38bdf8";
 }
 
 // ─── small components ─────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ function RiskGauge({ score }) {
   return (
     <div className="relative w-[96px] h-[96px] flex-shrink-0">
       <svg width="96" height="96" viewBox="0 0 96 96" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="48" cy="48" r={r} fill="none" stroke="#12362a" strokeWidth="9" />
+        <circle cx="48" cy="48" r={r} fill="none" stroke="#1a2a45" strokeWidth="9" />
         <circle cx="48" cy="48" r={r} fill="none" stroke={riskColor(pct)} strokeWidth="9"
           strokeDasharray={c} strokeDashoffset={c - (pct / 100) * c}
           strokeLinecap="round" style={{ transition: "stroke-dashoffset .6s ease" }} />
@@ -178,7 +178,7 @@ function VerdictCard({ result }) {
   const score    = result?.verdict?.risk_score;
   const level    = result?.verdict?.risk_level;
   const tone     = verdictTone(decision);
-  const accent   = tone === "danger" ? "#ff4d5e" : tone === "amber" ? "#ffc046" : "#1fe98a";
+  const accent   = tone === "danger" ? "#f87171" : tone === "amber" ? "#fbbf24" : "#38bdf8";
   const Icon     = decision === "APPROVED" ? Unlock : decision === "BLOCKED" ? Lock : AlertCircle;
 
   return (
@@ -526,8 +526,8 @@ export function ScannerPage() {
                       .sort(([a], [b]) => (SEV_ORDER[a] ?? 9) - (SEV_ORDER[b] ?? 9))
                       .map(([sev, count]) => {
                         const pct = totalFindings > 0 ? (count / totalFindings) * 100 : 0;
-                        const col = sev === "CRITICAL" || sev === "HIGH" ? "#ff4d5e"
-                          : sev === "MEDIUM" ? "#ffc046" : "#4a6b5d";
+                        const col = sev === "CRITICAL" || sev === "HIGH" ? "#f87171"
+                          : sev === "MEDIUM" ? "#fbbf24" : "#1e3050";
                         return (
                           <div key={sev} className="flex items-center gap-3">
                             <span className="text-[11px] font-mono text-ink3 w-16 flex-shrink-0">

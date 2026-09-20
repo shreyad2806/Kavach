@@ -1,20 +1,5 @@
-import { RefreshCw, WifiOff, ShieldAlert, Timer, Ban } from "lucide-react";
-import { Panel } from "../ui/Panel.jsx";
+import { RefreshCw, WifiOff, ShieldAlert, Timer, Ban, Shield, User } from "lucide-react";
 
-/**
- * TopBar — Kavach branding + connection status.
- *
- * The status distinguishes real failure modes, so a single throttled poll never
- * gets reported as an outage:
- *
- *   offline      -> Backend offline
- *   unauthorized -> Unauthorized
- *   rate_limited -> Rate limited / retrying
- *   5xx          -> Backend error
- *
- * `minimal` is used on the landing screen: branding and status only, no
- * operator chrome.
- */
 export function TopBar({
   connected = false,
   offline = false,
@@ -32,7 +17,7 @@ export function TopBar({
     statusDot = "bg-danger"; statusLabel = "Unauthorized";
     statusClass = "text-danger"; StatusIcon = Ban;
   } else if (errorKind === "rate_limited") {
-    statusDot = "bg-amber"; statusLabel = "Rate limited — retrying";
+    statusDot = "bg-amber"; statusLabel = "Rate limited";
     statusClass = "text-amber"; StatusIcon = Timer;
   } else if (errorKind) {
     statusDot = "bg-danger pulse"; statusLabel = "Backend error";
@@ -51,26 +36,25 @@ export function TopBar({
   const isBad = Boolean(errorKind) || offline;
 
   return (
-    <Panel className="px-4 py-3 flex items-center gap-3 flex-wrap rounded-none border-x-0 border-t-0">
-      {/* Left: logo + name */}
+    <div
+      className="px-4 py-2.5 flex items-center gap-3 flex-wrap border-b border-line bg-bg"
+    >
+      {/* Left: branding */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-[13px] text-deep bg-neon flex-shrink-0"
-          style={{ boxShadow: "0 0 0 2px #04120d, 0 0 0 4px #1fe98a" }}
-          aria-hidden="true"
-        >
-          KV
+        <div className="flex items-center gap-2">
+          <Shield size={16} style={{ color: "#00d4ff" }} className="flex-shrink-0" />
+          <span className="text-[13px] font-extrabold tracking-widest text-ink uppercase" style={{ letterSpacing: "0.1em" }}>
+            KAVACH
+          </span>
         </div>
 
-        <div className="leading-tight min-w-0">
-          <div className="text-[14px] font-bold text-ink">Kavach</div>
-          <div className="text-[11.5px] text-ink3">Runtime security</div>
-        </div>
+        <span className="text-ink3 text-[11px] hidden sm:block">·</span>
+        <span className="text-[11.5px] text-ink3 hidden sm:block">Runtime Security</span>
 
-        {/* Connection status */}
+        {/* Status pill */}
         <div
-          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold flex-shrink-0 ${
-            isBad ? "bg-danger/10 border-danger/20" : connected ? "bg-neon/10 border-neon/20" : "bg-line border-line2"
+          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold flex-shrink-0 ml-1 ${
+            isBad ? "bg-danger/10 border-danger/25" : connected ? "bg-neon/10 border-neon/20" : "bg-line border-line2"
           } ${statusClass}`}
           role="status"
           aria-live="polite"
@@ -82,28 +66,31 @@ export function TopBar({
         </div>
       </div>
 
-      {/* Right: refresh + operator (hidden on the landing screen) */}
+      {/* Right: refresh + user */}
       {!minimal && (
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={onRefresh}
             aria-label="Refresh all data"
-            className="w-8 h-8 rounded-btn flex items-center justify-center text-ink3 hover:text-ink hover:bg-line transition-colors"
+            className="w-7 h-7 rounded-tile flex items-center justify-center text-ink3 hover:text-neon hover:bg-line transition-colors"
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={13} />
           </button>
 
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-line2 border border-line flex items-center justify-center text-[11px] font-bold text-ink2 flex-shrink-0">
-              SL
+          <div className="flex items-center gap-2 pl-2 border-l border-line">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-neon flex-shrink-0"
+              style={{ background: "rgba(0,212,255,.1)", border: "1px solid rgba(0,212,255,.25)" }}
+            >
+              <User size={13} />
             </div>
             <div className="hidden sm:block leading-tight">
-              <div className="text-[12.5px] font-semibold text-ink">Security lead</div>
-              <div className="text-[11px] text-ink3">On shift</div>
+              <div className="text-[12px] font-semibold text-ink">Security Lead</div>
+              <div className="text-[10.5px] text-ink3">On shift</div>
             </div>
           </div>
         </div>
       )}
-    </Panel>
+    </div>
   );
 }

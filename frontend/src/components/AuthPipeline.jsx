@@ -11,9 +11,10 @@ const CHECKS = [
 ];
 
 const TONE_STYLES = {
-  neon:    { border: "#1fe98a", bg: "#1fe98a18", text: "#1fe98a" },
-  danger:  { border: "#ff4d5e", bg: "#ff4d5e18", text: "#ff4d5e" },
-  neutral: { border: "#17493a", bg: "#0c261c",   text: "#6d8f80" },
+  allow:   { border: "#38bdf8", bg: "#38bdf818", text: "#38bdf8" },
+  neon:    { border: "#38bdf8", bg: "#38bdf818", text: "#38bdf8" },
+  danger:  { border: "#f87171", bg: "#f8717118", text: "#f87171" },
+  neutral: { border: "#1a2a45", bg: "#101a2e",   text: "#3d5478" },
 };
 
 function firstFailedCheck(checks) {
@@ -66,11 +67,11 @@ export function AuthPipeline({ event = null, checks = {} }) {
                   borderColor: styles.border,
                   background: styles.bg,
                   color: styles.text,
-                  boxShadow: tone === "neon" ? "0 0 8px rgba(31,233,138,.2)" : tone === "danger" ? "0 0 8px rgba(255,77,94,.2)" : "none",
+                  boxShadow: tone === "allow" || tone === "neon" ? "0 0 8px rgba(56,189,248,.25)" : tone === "danger" ? "0 0 8px rgba(248,113,113,.2)" : "none",
                 }}
                 aria-label={`${label}: ${status}`}
               >
-                {tone === "neon" ? "✓" : tone === "danger" ? "✗" : "—"}
+                {tone === "allow" || tone === "neon" ? "✓" : tone === "danger" ? "✗" : "—"}
               </div>
               {/* Label */}
               <div className="text-[10.5px] text-ink3 text-center leading-tight max-w-[56px]">
