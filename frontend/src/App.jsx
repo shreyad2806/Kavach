@@ -67,7 +67,7 @@ export default function App() {
   const { snapshot, error: pollError, track, untrack, refresh } = useKavach();
 
   const [page, setPage] = useState("dashboard");
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   // "landing" | "dashboard" — in memory only, so a reload always starts clean.
   const [view, setView] = useState("landing");
@@ -294,7 +294,7 @@ export default function App() {
           </div>
         </main>
 
-        <footer className="text-center text-[11px] text-ink3 py-2 font-mono border-t border-line">
+        <footer className="text-center text-[11px] text-ink3 py-2 font-mono border-t border-line" style={{ background: "#080c15" }}>
           kavach · zero-trust runtime security ·{" "}
           {pollError ? "backend error" : "backend connected"}
         </footer>

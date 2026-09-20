@@ -1,4 +1,4 @@
-import { LayoutDashboard, ScanLine, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, ScanLine, Menu, Shield } from "lucide-react";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard",       Icon: LayoutDashboard },
@@ -8,26 +8,48 @@ const NAV_ITEMS = [
 export function Sidebar({ activePage, onNavigate, collapsed, onToggle }) {
   return (
     <aside
-      className={`flex flex-col border-r border-line bg-panel transition-all duration-200 flex-shrink-0 ${
-        collapsed ? "w-[56px]" : "w-[200px]"
+      className={`flex flex-col border-r border-line bg-bg transition-all duration-200 flex-shrink-0 ${
+        collapsed ? "w-[56px]" : "w-[210px]"
       }`}
       style={{ minHeight: "100vh" }}
     >
-      {/* Logo */}
-      <div className={`flex items-center gap-2.5 px-3 py-4 border-b border-line ${collapsed ? "justify-center" : ""}`}>
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-[12px] text-deep bg-neon flex-shrink-0"
-          style={{ boxShadow: "0 0 0 2px #04120d, 0 0 0 3px #1fe98a" }}
+      {/* Branding + hamburger */}
+      <div className={`flex items-center border-b border-line px-3 py-4 ${collapsed ? "flex-col gap-3" : "gap-2.5"}`}>
+        <button
+          onClick={onToggle}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="text-ink3 hover:text-neon transition-colors flex-shrink-0"
         >
-          KV
-        </div>
+          <Menu size={18} />
+        </button>
         {!collapsed && (
-          <div className="leading-tight min-w-0">
-            <div className="text-[13px] font-bold text-ink">Kavach</div>
-            <div className="text-[10.5px] text-ink3">Zero-trust security</div>
-          </div>
+          <>
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{
+                background: "linear-gradient(135deg, #00d4ff22, #0064c822)",
+                border: "1.5px solid #00d4ff40",
+                boxShadow: "0 0 10px rgba(0,212,255,.18)",
+              }}
+            >
+              <Shield size={15} style={{ color: "#00d4ff" }} />
+            </div>
+            <div className="leading-tight min-w-0">
+              <div className="text-[13px] font-extrabold tracking-widest text-ink uppercase" style={{ letterSpacing: "0.12em" }}>
+                KAVACH
+              </div>
+              <div className="text-[10px] text-ink3 tracking-wide">Zero-Trust Security</div>
+            </div>
+          </>
         )}
       </div>
+
+      {/* Nav label */}
+      {!collapsed && (
+        <div className="px-3 pt-4 pb-1">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-ink3">Navigation</span>
+        </div>
+      )}
 
       {/* Nav items */}
       <nav className="flex flex-col gap-1 p-2 flex-1">
@@ -38,13 +60,17 @@ export function Sidebar({ activePage, onNavigate, collapsed, onToggle }) {
               key={id}
               onClick={() => onNavigate(id)}
               title={collapsed ? label : undefined}
-              className={`flex items-center gap-2.5 rounded-tile px-2.5 py-2.5 text-left transition-colors w-full ${
+              className={`flex items-center gap-2.5 rounded-tile px-2.5 py-2.5 text-left transition-all w-full ${
                 active
-                  ? "bg-neon/10 border border-neon/20 text-neon"
+                  ? "text-neon border border-neon/20"
                   : "text-ink3 hover:text-ink2 hover:bg-line border border-transparent"
               } ${collapsed ? "justify-center" : ""}`}
+              style={active ? {
+                background: "linear-gradient(90deg, rgba(0,212,255,.08), rgba(0,212,255,.03))",
+                boxShadow: "inset 2px 0 0 #00d4ff",
+              } : {}}
             >
-              <Icon size={16} className="flex-shrink-0" />
+              <Icon size={15} className="flex-shrink-0" />
               {!collapsed && (
                 <span className="text-[12.5px] font-semibold truncate">{label}</span>
               )}
@@ -53,19 +79,24 @@ export function Sidebar({ activePage, onNavigate, collapsed, onToggle }) {
         })}
       </nav>
 
-      {/* Collapse toggle */}
-      <button
-        onClick={onToggle}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className={`flex items-center gap-2 px-3 py-3 border-t border-line text-ink3 hover:text-ink2 transition-colors ${
-          collapsed ? "justify-center" : ""
-        }`}
-      >
-        {collapsed
-          ? <ChevronRight size={14} />
-          : <><ChevronLeft size={14} /><span className="text-[11.5px]">Collapse</span></>
-        }
-      </button>
+      {/* System status */}
+      {!collapsed && (
+        <div className="px-3 pb-3">
+          <div className="rounded-tile border border-line bg-panel2 px-3 py-2.5">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-ink3 mb-2">System</div>
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-neon pulse flex-shrink-0" />
+              <span className="text-[11px] text-ink2">Shield active</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-neon pulse flex-shrink-0" />
+              <span className="text-[11px] text-ink2">Scanner online</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+
     </aside>
   );
 }
