@@ -10,7 +10,7 @@
 //   - consistent JSON error shape: { error, detail?, status? }
 
 export const DEFAULT_TIMEOUT_MS = 15_000;
-export const WORKFLOW_START_TIMEOUT_MS = 60_000;
+export const WORKFLOW_START_TIMEOUT_MS = 120_000;
 
 function upstreamTimeoutMs(overrideMs) {
   if (overrideMs) return overrideMs;
