@@ -13,7 +13,7 @@ import urllib.request
 from urllib.error import URLError
 
 MAX_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB hard limit
-TIMEOUT_SECONDS = 15
+TIMEOUT_SECONDS = 90
 
 # Private / reserved ranges that must never be fetched
 _BLOCKED_NETWORKS = [
