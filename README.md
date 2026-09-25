@@ -2,6 +2,8 @@
 
 **Zero-Trust Runtime Security for Autonomous Systems**
 
+🔗 **Live Demo:** https://d29nfc5b7f05b1.cloudfront.net
+
 Kavach is a security platform that enforces zero-trust principles on multi-agent AI environments. It was built in response to real-world attacks like the HuggingFace breach, where AI agents discovered vulnerabilities in an artifact registry and created hidden channels to exfiltrate credentials.
 
 Kavach operates at two layers:
