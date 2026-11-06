@@ -81,4 +81,4 @@ def test_detector_flags_overlong_delegation_chain():
 def test_score_is_capped_and_deduplicated():
     from shield.detection.signals import calculate_risk
     from shield.gateway.models import ReasonCode
-    assert calculate_risk([ReasonCode.IDENTITY_FAILURE] * 3) == 40
+    assert calculate_risk([ReasonCode.CAPABILITY_MISMATCH] * 3) == 30
