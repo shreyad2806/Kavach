@@ -57,13 +57,58 @@ function HomePage({runs,navigate,choose}) {
           <span><Zap size={16}/> Simulate threats</span><span><Bot size={16}/> Test agents</span><span><Layers3 size={16}/> Evaluate policies</span><span><Activity size={16}/> Inspect traces</span>
         </div>
       </div>
-      <div className="hero-visual" aria-label="Illustration of a protected runtime security boundary">
-        <div className="hero-grid-glow"/><div className="shield-orbit orbit-one"/><div className="shield-orbit orbit-two"/><div className="shield-orbit orbit-three"/><div className="shield-halo"/>
-        <div className="shield-core"><ShieldCheck size={86} strokeWidth={1.25}/></div>
+      <div className="hero-visual hero-visual-premium" aria-label="Glowing three-dimensional zero-trust shield with holographic security field">
+        <div className="hero-visual-aura"/>
+        <svg className="security-visual-svg" viewBox="0 0 620 440" role="img" aria-label="Luminous coral and electric blue shield floating above a holographic platform">
+          <defs>
+            <radialGradient id="globeFill" cx="50%" cy="42%" r="58%"><stop offset="0" stopColor="#286db8" stopOpacity=".48"/><stop offset=".68" stopColor="#0b3265" stopOpacity=".2"/><stop offset="1" stopColor="#06152b" stopOpacity="0"/></radialGradient>
+            <linearGradient id="shieldFace" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffb6a5" stopOpacity=".88"/><stop offset=".25" stopColor="#ff6d69" stopOpacity=".48"/><stop offset=".53" stopColor="#6c68ff" stopOpacity=".34"/><stop offset=".8" stopColor="#1b9dff" stopOpacity=".54"/><stop offset="1" stopColor="#a8eaff" stopOpacity=".78"/></linearGradient>
+            <linearGradient id="shieldEdge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff0e9"/><stop offset=".32" stopColor="#ff776d"/><stop offset=".7" stopColor="#7e83ff"/><stop offset="1" stopColor="#69d8ff"/></linearGradient>
+            <linearGradient id="checkStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff"/><stop offset=".55" stopColor="#ffddd6"/><stop offset="1" stopColor="#8beaff"/></linearGradient>
+            <linearGradient id="platformLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#ff6b70" stopOpacity="0"/><stop offset=".22" stopColor="#ff7a78"/><stop offset=".52" stopColor="#fff0ed"/><stop offset=".78" stopColor="#42caff"/><stop offset="1" stopColor="#42caff" stopOpacity="0"/></linearGradient>
+            <radialGradient id="platformGlow"><stop offset="0" stopColor="#ff796e" stopOpacity=".48"/><stop offset=".48" stopColor="#388fff" stopOpacity=".2"/><stop offset="1" stopColor="#168cff" stopOpacity="0"/></radialGradient>
+            <filter id="shieldGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="9" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="softGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="15"/></filter>
+            <pattern id="globeDots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" fill="#70caff" opacity=".78"/></pattern>
+          </defs>
+          <circle cx="310" cy="174" r="164" fill="url(#globeFill)"/>
+          <circle cx="310" cy="174" r="155" fill="url(#globeDots)" opacity=".52" mask="url(#globeMask)"/>
+          <defs><mask id="globeMask"><circle cx="310" cy="174" r="154" fill="white"/><ellipse cx="310" cy="174" rx="155" ry="54" fill="black" opacity=".15"/></mask></defs>
+          <g fill="none" stroke="#3c9fff" opacity=".28">
+            <ellipse cx="310" cy="174" rx="150" ry="154"/><ellipse cx="310" cy="174" rx="105" ry="154"/><ellipse cx="310" cy="174" rx="54" ry="154"/>
+            <ellipse cx="310" cy="174" rx="154" ry="48"/><ellipse cx="310" cy="174" rx="154" ry="98"/>
+            <path d="M164 120 Q310 5 456 120M164 229 Q310 345 456 229"/>
+          </g>
+          <path d="M112 220 C165 70 438 54 520 172" fill="none" stroke="#35aaff" strokeWidth="1.5" opacity=".42"/>
+          <path d="M98 190 C176 306 430 320 536 160" fill="none" stroke="#ff796e" strokeWidth="1.8" opacity=".78"/>
+          <path d="M124 250 C220 350 438 310 508 216" fill="none" stroke="#57caff" strokeWidth="1.3" opacity=".62"/>
+          <g filter="url(#softGlow)" opacity=".7"><ellipse cx="310" cy="348" rx="160" ry="42" fill="url(#platformGlow)"/></g>
+          <g fill="none" strokeLinecap="round">
+            <ellipse cx="310" cy="344" rx="184" ry="42" stroke="#298fff" strokeWidth="2" opacity=".8"/>
+            <ellipse cx="310" cy="341" rx="155" ry="31" stroke="#60caff" strokeWidth="2.5" opacity=".8"/>
+            <ellipse cx="310" cy="339" rx="124" ry="23" stroke="#ff7d75" strokeWidth="2.2" opacity=".92"/>
+            <ellipse cx="310" cy="346" rx="205" ry="49" stroke="url(#platformLine)" strokeWidth="2.2"/>
+            <path d="M126 343 Q310 405 494 343" stroke="#2e91ff" strokeWidth="1.2" opacity=".7"/>
+            <path d="M180 331 Q310 369 440 331" stroke="#ffe3de" strokeWidth="1.5" opacity=".7"/>
+          </g>
+          <path d="M310 95 L383 136 L376 246 Q365 294 310 326 Q255 294 244 246 L237 136Z" fill="#ff786d" opacity=".17" filter="url(#softGlow)"/>
+          <g filter="url(#shieldGlow)">
+            <path d="M310 73 L391 119 L383 229 Q371 286 310 317 Q249 286 237 229 L229 119Z" fill="url(#shieldFace)" stroke="url(#shieldEdge)" strokeWidth="5" strokeLinejoin="round"/>
+            <path d="M310 91 L374 128 L367 226 Q357 270 310 294 Q263 270 253 226 L246 128Z" fill="#071a36" fillOpacity=".7" stroke="#ffd2c8" strokeWidth="2.2" strokeLinejoin="round"/>
+            <path d="M310 105 L359 134 L354 221 Q346 254 310 274 Q274 254 266 221 L261 134Z" fill="url(#shieldFace)" fillOpacity=".32" stroke="#83d9ff" strokeOpacity=".86" strokeWidth="1.5"/>
+            <path d="M278 192 L300 215 L346 166" fill="none" stroke="url(#checkStroke)" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round"/>
+          </g>
+          <path d="M310 73 L391 119 L383 229" fill="none" stroke="#fff2ed" strokeWidth="2" opacity=".9"/>
+          <path d="M229 119 L237 229 Q249 286 310 317" fill="none" stroke="#ff978d" strokeWidth="2" opacity=".75"/>
+          <path d="M310 73 L310 42" stroke="#ff9c91" strokeWidth="1.5" opacity=".65"/>
+          <g fill="#ff8b7e"><circle cx="115" cy="218" r="4"/><circle cx="493" cy="161" r="3.5"/></g>
+          <g fill="#64cfff"><circle cx="475" cy="248" r="3.5"/><circle cx="171" cy="104" r="3"/></g>
+          <g fill="none" stroke="#ff8278" opacity=".45"><path d="M310 318V335"/><path d="M278 309L257 337"/><path d="M342 309L363 337"/></g>
+        </svg>
         <div className="hero-node hero-node-agent"><Bot size={16}/><span><b>Agent identity</b><small>Verified principal</small></span></div>
         <div className="hero-node hero-node-policy"><Layers3 size={16}/><span><b>Policy gate</b><small>Cedar evaluation</small></span></div>
         <div className="hero-node hero-node-threat"><ShieldAlert size={16}/><span><b>Threat signal</b><small>Scenario input</small></span></div>
-        <div className="hero-scan-line"/>
+        <div className="hero-connector connector-agent"/><div className="hero-connector connector-policy"/><div className="hero-connector connector-threat"/>
       </div>
     </section>
     <section className="home-workspace">
