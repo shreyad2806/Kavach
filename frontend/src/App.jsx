@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "lucide-react";
 import { TopBar } from "./components/TopBar.jsx";
 import { Sidebar } from "./components/Sidebar.jsx";
-import { LandingPanel, RunWorkflowPanel } from "./components/LandingPanel.jsx";
+import { RunWorkflowPanel } from "./components/LandingPanel.jsx";
+import { ShieldPage } from "./pages/ShieldPage.jsx";
 import { SecurityTestPanel } from "./components/SecurityTestPanel.jsx";
 import { DashboardPage } from "./pages/DashboardPage.jsx";
 import { ScannerPage } from "./pages/ScannerPage.jsx";
@@ -184,9 +185,10 @@ export default function App() {
                 <SecurityTestPanel status={status} attack={attack} onAttack={simulateAttack} attacking={attacking} error={attackError} onRunAgain={runAgain} resetting={resetting} />
               </DashboardPage>
             ) : (
-              <LandingPanel
-                task={task} onTaskChange={setTask} onRun={runWorkflow} busy={starting}
-                error={fleetError} agents={agents} events={events}
+              <ShieldPage
+                error={fleetError}
+                agents={agents}
+                events={events}
                 selectedRequestId={selectedRequestId}
                 connected={!pollError && !fleetError}
                 onOpenRunWorkflow={() => { setRunError(""); setView("run"); }}
