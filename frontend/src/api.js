@@ -11,7 +11,6 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
-
 function classify(status) {
   if (status === 401 || status === 403) return "unauthorized";
   if (status === 429) return "rate_limited";
@@ -19,14 +18,11 @@ function classify(status) {
   if (status >= 500) return "server";
   return "client";
 }
-
-const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\\/$/, "");
+const configuredBase = import.meta.env.VITE_API_BASE_URL || "";
+const apiBase = configuredBase.endsWith("/") ? configuredBase.slice(0, -1) : configuredBase;
 
 async function request(path, options = {}) {
-  const init = {
-    ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
-  };
+  const init = { ...options, headers: { "Content-Type": "application/json", ...options.headers } };
   let res;
   try {
     res = await fetch(apiBase + "/api" + path, init);
