@@ -128,3 +128,9 @@ body::after {
     radial-gradient(circle at 80% 20%, rgb(var(--ambient) / .07) 0%, transparent 45%),
     radial-gradient(circle at 60% 80%, rgb(var(--accent) / .04) 0%, transparent 40%);
 }
+
+/* Neutralize legacy translucent-white surfaces in light palettes. */
+[data-theme$="light"] [class*="border-white/"] { border-color: rgb(var(--line) / .82) !important; }
+[data-theme$="light"] [class*="bg-white/"] { background-color: rgb(var(--surface-raised) / .48) !important; }
+[data-theme$="light"] [class*="hover:bg-white/"]:hover { background-color: rgb(var(--line) / .42) !important; }
+[data-theme$="light"] [class*="text-white/"] { color: rgb(var(--text)) !important; }
