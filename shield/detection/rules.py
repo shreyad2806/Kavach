@@ -96,10 +96,13 @@ def check_suspicious_behavior(
         for code, check in checks:
             if check(request):
                 triggered_codes.add(code)
-    primary = {
-        ReasonCode.CAPABILITY_MISMATCH,
-        ReasonCode.AUTHORITY_MISMATCH,
-        ReasonCode.PROVENANCE_ANOMALY,
-        ReasonCode.PRIVILEGE_ESCALATION,
-    }
-    return len(triggered_codes.intersection(primary)) >= 2
+    has_privilege_escalation = ReasonCode.PRIVILEGE_ESCALATION in triggered_codes
+    has_independent_violation = any(
+        code in triggered_codes
+        for code in (
+            ReasonCode.CAPABILITY_MISMATCH,
+            ReasonCode.AUTHORITY_MISMATCH,
+            ReasonCode.PROVENANCE_ANOMALY,
+        )
+    )
+    return has_privilege_escalation and has_independent_violation
