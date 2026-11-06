@@ -1,14 +1,8 @@
 """
-Security Signals — stable deterministic weights and explainable risk output.
-
-The weights are intentionally compatible with the original Kavach score model.
-Contextual findings are folded into SUSPICIOUS_BEHAVIOR so existing clients and
-ReasonCode enums remain backward-compatible.
+Security signal catalogue and bounded deterministic risk scoring.
 """
 from typing import Iterable
-
 from pydantic import BaseModel, ConfigDict, Field
-
 from shield.gateway.models import ReasonCode
 
 SIGNAL_WEIGHTS: dict[ReasonCode, int] = {
@@ -17,12 +11,10 @@ SIGNAL_WEIGHTS: dict[ReasonCode, int] = {
     ReasonCode.PROVENANCE_ANOMALY: 20,
     ReasonCode.PRIVILEGE_ESCALATION: 15,
     ReasonCode.SUSPICIOUS_BEHAVIOR: 10,
-    # Additional existing authorization reasons, used in early-return paths.
     ReasonCode.IDENTITY_FAILURE: 40,
     ReasonCode.AGENT_QUARANTINED: 35,
     ReasonCode.POLICY_DENIED: 20,
 }
-
 SIGNAL_EXPLANATIONS: dict[ReasonCode, str] = {
     ReasonCode.CAPABILITY_MISMATCH: "Declared capability does not match the capability required by the requested action.",
     ReasonCode.AUTHORITY_MISMATCH: "Claimed authority conflicts with the validated delegation chain or source identity.",
@@ -33,9 +25,7 @@ SIGNAL_EXPLANATIONS: dict[ReasonCode, str] = {
     ReasonCode.AGENT_QUARANTINED: "The requesting agent is quarantined and cannot perform protected operations.",
     ReasonCode.POLICY_DENIED: "The active Cedar authorization policy denied this operation.",
 }
-
 SignalType = ReasonCode
-ThreatSignal = None
 
 
 class DetectionSignal(BaseModel):
@@ -44,6 +34,9 @@ class DetectionSignal(BaseModel):
     weight: int = Field(ge=0, le=100)
     triggered: bool = True
     explanation: str = Field(min_length=1)
+
+
+ThreatSignal = DetectionSignal
 
 
 def calculate_risk(signals: Iterable[DetectionSignal | ReasonCode | str]) -> int:
