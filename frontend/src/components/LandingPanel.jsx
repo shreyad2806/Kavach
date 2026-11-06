@@ -31,7 +31,7 @@ function Stat({ label, value, detail, tone = "default", icon: Icon }) {
         {Icon && <Icon size={15} className="text-slate-500" />}
       </div>
       <div className="flex items-end justify-between gap-2">
-        <span className={\`text-[30px] leading-none font-semibold tracking-tight \${t}\`}>{value}</span>
+        <span className={`text-[30px] leading-none font-semibold tracking-tight ${t}`}>{value}</span>
         {detail && <span className="text-[11px] text-slate-500 text-right">{detail}</span>}
       </div>
     </Panel>
