@@ -151,7 +151,7 @@ function FleetCard({ agents, onAgentSelect, selectedAgent }) {
 
 export function LandingPanel({
   task, onTaskChange, onRun, busy = false, error = "",
-  agents = [], events = [], connected = true, onInspectEvent, onAgentSelect,
+  agents = [], events = [], connected = true, selectedRequestId = null, onInspectEvent, onAgentSelect,
   onOpenRunWorkflow,
 }) {
   const allowCount = events.filter(e => e.policy_decision === "ALLOW").length;
@@ -198,7 +198,7 @@ export function LandingPanel({
           ) : (
             <>
               <div className="hidden sm:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_92px_72px] gap-3 px-3 py-2 text-[9px] font-bold tracking-[.14em] text-slate-600 uppercase border-b border-white/[.04]"><span>Agent / operation</span><span>Finding / time</span><span>Decision</span><span className="text-right">Risk</span></div>
-              {latest.map(event => <DecisionRow key={event.request_id} event={event} onClick={() => onInspectEvent?.(event)} />)}
+              {latest.map(event => <DecisionRow key={event.request_id} event={event} selected={event.request_id === selectedRequestId} onClick={() => onInspectEvent?.(event)} />)}
             </>
           )}
         </Panel>
