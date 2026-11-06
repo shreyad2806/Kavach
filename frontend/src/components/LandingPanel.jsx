@@ -67,12 +67,12 @@ function DecisionRow({ event, selected, onClick }) {
       </div>
       <div className="min-w-0">
         <div className="text-[11px] text-slate-400 truncate">{event.reason_codes?.[0]?.replaceAll("_", " ") || "Policy evaluation complete"}</div>
-        <div className="text-[10px] text-slate-600 mt-1">{relativeTime(event.timestamp)}</div>
+        <div className="text-[10px] text-ink3 mt-1">{relativeTime(event.timestamp)}</div>
       </div>
       <Badge label={event.policy_decision} tone={decisionTone(event.policy_decision)} />
       <div className="text-right">
         <span className="font-mono text-sm font-semibold" style={{ color: score == null ? "#64748b" : riskColor(score) }}>{score ?? "—"}</span>
-        <div className="text-[9px] tracking-wider text-slate-600 uppercase">risk</div>
+        <div className="text-[9px] tracking-wider text-ink3 uppercase">risk</div>
       </div>
     </button>
   );
@@ -110,8 +110,8 @@ function PipelineCard({ event }) {
             })}
           </div>
           <div className="mt-4 pt-3 border-t border-white/[.06] grid grid-cols-2 gap-3 text-[11px]">
-            <div><span className="text-slate-600">Request ID</span><div className="font-mono text-slate-400 mt-1 truncate">{event.request_id}</div></div>
-            <div><span className="text-slate-600">Task ID</span><div className="font-mono text-slate-400 mt-1 truncate">{event.task_id}</div></div>
+            <div><span className="text-ink3">Request ID</span><div className="font-mono text-slate-400 mt-1 truncate">{event.request_id}</div></div>
+            <div><span className="text-ink3">Task ID</span><div className="font-mono text-slate-400 mt-1 truncate">{event.task_id}</div></div>
           </div>
           {event.reason_codes?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3">
@@ -197,7 +197,7 @@ export function LandingPanel({
             <EmptyState title="Shield is standing by" description="No authorization events are recorded in this session yet. Run a workflow or the adversarial scenario to watch real decisions arrive here." />
           ) : (
             <>
-              <div className="hidden sm:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_92px_72px] gap-3 px-3 py-2 text-[9px] font-bold tracking-[.14em] text-slate-600 uppercase border-b border-white/[.04]"><span>Agent / operation</span><span>Finding / time</span><span>Decision</span><span className="text-right">Risk</span></div>
+              <div className="hidden sm:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_92px_72px] gap-3 px-3 py-2 text-[9px] font-bold tracking-[.14em] text-ink3 uppercase border-b border-white/[.04]"><span>Agent / operation</span><span>Finding / time</span><span>Decision</span><span className="text-right">Risk</span></div>
               {latest.map(event => <DecisionRow key={event.request_id} event={event} selected={event.request_id === selectedRequestId} onClick={() => onInspectEvent?.(event)} />)}
             </>
           )}
@@ -223,7 +223,7 @@ export function LandingPanel({
             ))}
           </div>
           <div className="mt-auto pt-4">
-            <div className="flex items-center gap-2 text-[10px] text-slate-600 border-t border-white/[.06] pt-3"><Clock3 size={12} /> Status reflects backend availability, not inferred agent health.</div>
+            <div className="flex items-center gap-2 text-[10px] text-ink3 border-t border-white/[.06] pt-3"><Clock3 size={12} /> Status reflects backend availability, not inferred agent health.</div>
           </div>
         </Panel>
       </div>
@@ -239,9 +239,9 @@ export function LandingPanel({
           <p className="text-[11px] text-slate-500 mt-1.5">Exercise the actual enforcement boundary using a controlled capability-escalation attempt. No simulated dashboard-only verdicts.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="rounded-lg border border-white/[.07] px-2.5 py-1.5 text-[10px] font-mono text-slate-400">research-01</span>
-            <ArrowRight size={13} className="text-slate-600 self-center" />
+            <ArrowRight size={13} className="text-ink3 self-center" />
             <span className="rounded-lg border border-rose-400/20 bg-rose-400/[.05] px-2.5 py-1.5 text-[10px] font-mono text-rose-300">deployment.deploy</span>
-            <ArrowRight size={13} className="text-slate-600 self-center" />
+            <ArrowRight size={13} className="text-ink3 self-center" />
             <span className="rounded-lg border border-white/[.07] px-2.5 py-1.5 text-[10px] font-mono text-slate-400">production</span>
           </div>
         </Panel>
@@ -268,10 +268,10 @@ export function RunWorkflowPanel({ task, onTaskChange, onRun, busy = false, erro
       <Panel className="p-5 sm:p-6">
         <form onSubmit={submit} className="space-y-4">
           <label htmlFor="task" className="block text-[10px] font-bold tracking-[.15em] uppercase text-slate-500">Workflow objective</label>
-          <textarea id="task" rows={5} value={task} onChange={e => onTaskChange(e.target.value)} placeholder="Describe the work for your autonomous agent team…" className="w-full rounded-xl border border-white/[.1] bg-[#080d16] px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-400/40 resize-y" />
+          <textarea id="task" rows={5} value={task} onChange={e => onTaskChange(e.target.value)} placeholder="Describe the work for your autonomous agent team…" className="w-full rounded-xl border border-line bg-panel2 px-4 py-3 text-sm text-slate-100 placeholder:text-ink3 focus:outline-none focus:border-cyan-400/40 resize-y" />
           {error && <div role="alert" className="text-xs text-rose-300">{error}</div>}
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-[10px] text-slate-600">Workflow starts only when you submit.</span>
+            <span className="text-[10px] text-ink3">Workflow starts only when you submit.</span>
             <Button type="submit" size="lg" disabled={!task.trim() || busy}>{busy ? "Starting…" : "Start protected workflow"} <ArrowUpRight size={14} /></Button>
           </div>
         </form>
