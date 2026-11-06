@@ -209,8 +209,8 @@ export default function App() {
             )}
           </div>
         </main>
-        <footer className="flex items-center justify-center gap-2 text-[10px] text-slate-600 py-3 border-t border-white/[.06]">
-          <Shield size={11} className="text-cyan-400/70" /> KAVACH <span className="text-slate-700">/</span> ZERO-TRUST RUNTIME SECURITY <span className="text-slate-700">/</span> {pollError || fleetError ? "CONTROL PLANE DEGRADED" : "CONTROL PLANE CONNECTED"}
+        <footer className="flex items-center justify-center gap-2 text-[10px] text-slate-600 py-3 border-t border-line">
+          <Shield size={11} className="text-neon" /> KAVACH <span className="text-ink3">/</span> ZERO-TRUST RUNTIME SECURITY <span className="text-ink3">/</span> {pollError || fleetError ? "CONTROL PLANE DEGRADED" : "CONTROL PLANE CONNECTED"}
         </footer>
       </div>
     </div>
