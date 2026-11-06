@@ -1,6 +1,5 @@
 import { ArrowRight, CheckCircle2, CircleDashed, ShieldAlert } from "lucide-react";
 import { Panel } from "../ui/Panel.jsx";
-import { checkTone } from "../lib/format.js";
 
 const CHECKS = [
   { key: "identity", label: "Identity", detail: "Registered principal" },
@@ -19,6 +18,7 @@ const statusPresentation = (status) => {
 
 export function AuthPipeline({ event = null, checks = {} }) {
   const failed = CHECKS.find(({ key }) => ["FAIL", "DENY", "BLOCK"].includes(checks?.[key]));
+  const evaluatedCount = CHECKS.filter(({ key }) => checks?.[key] && checks[key] !== "NOT_EVALUATED").length;
   const reasons = event?.reason_codes ?? [];
 
   return (
@@ -26,7 +26,8 @@ export function AuthPipeline({ event = null, checks = {} }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-slate-100">Authorization trace</div>
-          <div className="text-[11px] text-slate-500 mt-1">Every gate is evaluated before a protected operation executes.</div>
+          <div className="text-[11px] text-slate-500 mt-1">Observed gate results from the selected authorization request.</div>
+          <div className="text-[10px] text-slate-600 mt-1">{evaluatedCount} of {CHECKS.length} checks evaluated</div>
         </div>
         {event && (
           <span className={\`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full border \${event.policy_decision === "ALLOW" ? "text-emerald-300 border-emerald-400/20 bg-emerald-400/[.06]" : "text-rose-300 border-rose-400/20 bg-rose-400/[.06]"}\`}>
