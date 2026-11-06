@@ -187,6 +187,7 @@ export default function App() {
               <LandingPanel
                 task={task} onTaskChange={setTask} onRun={runWorkflow} busy={starting}
                 error={fleetError} agents={agents} events={events}
+                selectedRequestId={selectedRequestId}
                 connected={!pollError && !fleetError}
                 onOpenRunWorkflow={() => { setRunError(""); setView("run"); }}
                 onInspectEvent={(event) => { setSelectedRequestId(event.request_id); setUserSelected(true); setView("dashboard"); }}
