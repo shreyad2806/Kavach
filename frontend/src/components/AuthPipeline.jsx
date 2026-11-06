@@ -30,7 +30,7 @@ export function AuthPipeline({ event = null, checks = {} }) {
           <div className="text-[10px] text-slate-600 mt-1">{evaluatedCount} of {CHECKS.length} checks evaluated</div>
         </div>
         {event && (
-          <span className={\`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full border \${event.policy_decision === "ALLOW" ? "text-emerald-300 border-emerald-400/20 bg-emerald-400/[.06]" : "text-rose-300 border-rose-400/20 bg-rose-400/[.06]"}\`}>
+          <span className={`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full border ${event.policy_decision === "ALLOW" ? "text-emerald-300 border-emerald-400/20 bg-emerald-400/[.06]" : "text-rose-300 border-rose-400/20 bg-rose-400/[.06]"}`}>
             {event.policy_decision}
           </span>
         )}
@@ -50,7 +50,7 @@ export function AuthPipeline({ event = null, checks = {} }) {
               const presentation = statusPresentation(status);
               const Icon = presentation.Icon;
               return (
-                <div key={key} className={\`rounded-xl border px-3 py-3 min-w-0 \${presentation.className}\`}>
+                <div key={key} className={`rounded-xl border px-3 py-3 min-w-0 ${presentation.className}`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-semibold">{label}</span>
                     <Icon size={13} className="flex-shrink-0" />
@@ -64,15 +64,15 @@ export function AuthPipeline({ event = null, checks = {} }) {
           <div className="border-t border-white/[.06] pt-3">
             <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-300 mb-2">
               {failed ? <ShieldAlert size={13} className="text-rose-300" /> : <CheckCircle2 size={13} className="text-emerald-300" />}
-              {failed ? \`Stopped at \${failed.label}\` : event.policy_decision === "ALLOW" ? "Request passed authorization" : "Request denied"}
+              {failed ? `Stopped at ${failed.label}` : event.policy_decision === "ALLOW" ? "Request passed authorization" : "Request denied"}
             </div>
             <p className="text-[11px] leading-relaxed text-slate-500">
               {reasons.length
                 ? reasons.map(value => value.replaceAll("_", " ").toLowerCase()).join(" · ")
                 : failed
-                  ? \`The \${failed.label.toLowerCase()} gate rejected this operation. Later checks are not treated as approval.\`
+                  ? `The ${failed.label.toLowerCase()} gate rejected this operation. Later checks are not treated as approval.`
                   : event.policy_decision === "ALLOW"
-                    ? \`\${event.source_agent} was authorized to perform \${event.action} against \${event.resource}.\`
+                    ? `${event.source_agent} was authorized to perform ${event.action} against ${event.resource}.`
                     : "The request was denied by the authorization control plane."}
             </p>
             <div className="grid grid-cols-2 gap-3 mt-3 text-[10px]">
