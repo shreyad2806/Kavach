@@ -1,8 +1,9 @@
 """
-Security signal catalogue and bounded deterministic risk scoring.
+Security Signals — stable deterministic weights and explainable risk output.
 
-Weights are risk contributions, not authorization authority. All signals are
-deduplicated before scoring and a score never changes ALLOW/DENY.
+The weights are intentionally compatible with the original Kavach score model.
+Contextual findings are folded into SUSPICIOUS_BEHAVIOR so existing clients and
+ReasonCode enums remain backward-compatible.
 """
 from typing import Iterable
 
@@ -10,37 +11,35 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from shield.gateway.models import ReasonCode
 
-
 SIGNAL_WEIGHTS: dict[ReasonCode, int] = {
-    ReasonCode.CAPABILITY_MISMATCH: 28,
-    ReasonCode.AUTHORITY_MISMATCH: 24,
-    ReasonCode.PROVENANCE_ANOMALY: 24,
-    ReasonCode.PRIVILEGE_ESCALATION: 24,
-    ReasonCode.SUSPICIOUS_BEHAVIOR: 14,
-    ReasonCode.POLICY_DENIED: 20,
-    ReasonCode.AGENT_QUARANTINED: 35,
+    ReasonCode.CAPABILITY_MISMATCH: 30,
+    ReasonCode.AUTHORITY_MISMATCH: 25,
+    ReasonCode.PROVENANCE_ANOMALY: 20,
+    ReasonCode.PRIVILEGE_ESCALATION: 15,
+    ReasonCode.SUSPICIOUS_BEHAVIOR: 10,
+    # Additional existing authorization reasons, used in early-return paths.
     ReasonCode.IDENTITY_FAILURE: 40,
+    ReasonCode.AGENT_QUARANTINED: 35,
+    ReasonCode.POLICY_DENIED: 20,
 }
 
 SIGNAL_EXPLANATIONS: dict[ReasonCode, str] = {
-    ReasonCode.CAPABILITY_MISMATCH: "The presented capability does not match the requested action.",
-    ReasonCode.AUTHORITY_MISMATCH: "The claimed authority does not match the request's delegation lineage.",
-    ReasonCode.PROVENANCE_ANOMALY: "The delegation lineage is malformed or contains an unsupported delegation edge.",
-    ReasonCode.PRIVILEGE_ESCALATION: "The requesting agent is attempting an action outside its assigned role boundary.",
-    ReasonCode.SUSPICIOUS_BEHAVIOR: "Multiple independent security invariants were violated in one request.",
-    ReasonCode.POLICY_DENIED: "The active Cedar policy denied this request.",
-    ReasonCode.AGENT_QUARANTINED: "The requesting agent is already in a quarantined state.",
-    ReasonCode.IDENTITY_FAILURE: "The requesting agent is not present in the trusted identity registry.",
+    ReasonCode.CAPABILITY_MISMATCH: "Declared capability does not match the capability required by the requested action.",
+    ReasonCode.AUTHORITY_MISMATCH: "Claimed authority conflicts with the validated delegation chain or source identity.",
+    ReasonCode.PROVENANCE_ANOMALY: "Provenance violates delegation chain integrity or supported delegation relationships.",
+    ReasonCode.PRIVILEGE_ESCALATION: "The requested action exceeds the requesting agent's assigned role boundary.",
+    ReasonCode.SUSPICIOUS_BEHAVIOR: "A contextual or compound security invariant was violated by this request.",
+    ReasonCode.IDENTITY_FAILURE: "The requesting agent is not registered in the trusted identity registry.",
+    ReasonCode.AGENT_QUARANTINED: "The requesting agent is quarantined and cannot perform protected operations.",
+    ReasonCode.POLICY_DENIED: "The active Cedar authorization policy denied this operation.",
 }
 
-# SignalType remains as a compatibility alias for existing imports.
 SignalType = ReasonCode
 ThreatSignal = None
 
 
 class DetectionSignal(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     code: ReasonCode
     weight: int = Field(ge=0, le=100)
     triggered: bool = True
@@ -64,12 +63,11 @@ def calculate_risk(signals: Iterable[DetectionSignal | ReasonCode | str]) -> int
         if code not in seen:
             seen.add(code)
             total += weight
-    return min(100, max(0, total))
+    return max(0, min(100, total))
 
 
 class DetectionResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     request_id: str = Field(min_length=1)
     risk_score: int = Field(ge=0, le=100)
     signals: list[DetectionSignal] = Field(default_factory=list)
