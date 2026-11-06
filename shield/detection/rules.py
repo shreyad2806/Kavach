@@ -1,143 +1,105 @@
 """
-Detection Rules — deterministic security rules and signal evaluations for Kavach Phase 11.
+Context-aware runtime detection for Kavach.
 
-Evaluates observable request-level properties to identify capability mismatches,
-authority mismatches, provenance anomalies, privilege escalations, and suspicious behavior.
+Detection is deliberately deterministic and explainable. It scores observable
+properties of a typed ActionRequest; the score is advisory and MUST NEVER
+override the authorization pipeline's fail-closed decision.
 """
+from __future__ import annotations
 
 from shield.capabilities.models import CapabilityName
 from shield.capabilities.registry import required_capability
-from shield.gateway.models import ActionName, ActionRequest, ReasonCode
+from shield.gateway.models import ActionName, ActionRequest, ReasonCode, ResourceName
 from shield.identity.models import AgentId
 from shield.provenance.validator import validate_provenance
 
 
 def check_capability_mismatch(request: ActionRequest) -> bool:
-    """
-    Fire when the request's declared capability does not match the capability
-    required by the requested action according to Kavach's deterministic mapping.
-    """
-    req_cap = required_capability(request.action)
-    if req_cap is None:
-        return True
-    return request.capability != req_cap
+    required = required_capability(request.action)
+    return required is None or request.capability != required
 
 
 def check_authority_mismatch(request: ActionRequest) -> bool:
-    """
-    Fire when claimed_authority conflicts with the validated delegation chain
-    or source identity according to deterministic provenance semantics:
-      - Self-originated single-element chain: claimed_authority must equal source_agent.
-      - Delegated chain: claimed_authority must equal the direct delegator (chain[-2]).
-      - Chain must terminate at source_agent.
-    """
     chain = request.provenance.delegation_chain
-    if not chain:
+    if not chain or chain[-1] != request.source_agent:
         return True
-
-    # Chain must terminate at source agent
-    if chain[-1] != request.source_agent:
-        return True
-
-    if len(chain) == 1:
-        return request.claimed_authority != request.source_agent
-    return request.claimed_authority != chain[-2]
+    expected = request.source_agent if len(chain) == 1 else chain[-2]
+    return request.claimed_authority != expected
 
 
 def check_provenance_anomaly(request: ActionRequest) -> bool:
-    """
-    Fire when provenance violates structural delegation chain integrity rules.
-    Reuses validate_provenance(request) from shield.provenance.validator.
-    """
     result = validate_provenance(request)
-    return result.reason_code == ReasonCode.PROVENANCE_ANOMALY
+    return not result.valid and result.reason_code == ReasonCode.PROVENANCE_ANOMALY
 
 
 def check_privilege_escalation(request: ActionRequest) -> bool:
-    """
-    Fire when the requested action represents a privilege increase relative to the
-    agent's assigned role and capabilities.
+    required = required_capability(request.action)
+    owner_by_capability = {
+        CapabilityName.DEPLOYMENT_PRODUCTION: AgentId.DEPLOYMENT_01,
+        CapabilityName.DEPLOYMENT_PREVIEW: AgentId.DEPLOYMENT_01,
+        CapabilityName.ORCHESTRATOR_DELEGATE: AgentId.ORCHESTRATOR_01,
+        CapabilityName.ORCHESTRATOR_COORDINATE: AgentId.ORCHESTRATOR_01,
+        CapabilityName.CODING_WRITE: AgentId.CODING_01,
+        CapabilityName.RESEARCH_WRITE: AgentId.RESEARCH_01,
+    }
+    expected_owner = owner_by_capability.get(required)
+    return expected_owner is not None and request.source_agent != expected_owner
 
-    Explicit deterministic rule using frozen agent/capability/action definitions:
-      1. Deployment operations (deployment.deploy, deployment.production, deployment.preview)
-         require deployment authority. Attempted by any non-deployment agent
-         (e.g., research-01, coding-01, verification-01, orchestrator-01) triggers
-         PRIVILEGE_ESCALATION.
-      2. Orchestration operations (orchestrator.delegate, orchestrator.coordinate)
-         require orchestrator authority. Attempted by non-orchestrator agents triggers
-         PRIVILEGE_ESCALATION.
-      3. Code modification operations (coding.write) require coding authority.
-         Attempted by non-coding agents (research-01, verification-01) triggers
-         PRIVILEGE_ESCALATION.
-    """
-    action_val = request.action.value if isinstance(request.action, ActionName) else str(request.action)
-    source = request.source_agent
 
-    # 1. Deployment privilege escalation
-    is_deployment_action = (
-        action_val in ("deployment.deploy", "deployment.preview", "deployment.production")
-        or request.action in (ActionName.DEPLOYMENT_DEPLOY, ActionName.DEPLOYMENT_PREVIEW)
-        or required_capability(request.action) in (
-            CapabilityName.DEPLOYMENT_PRODUCTION,
-            CapabilityName.DEPLOYMENT_PREVIEW,
+def check_sensitive_resource_mismatch(request: ActionRequest) -> bool:
+    """Flag actions that are structurally incompatible with resource sensitivity."""
+    action = request.action
+    resource = request.resource
+    if resource == ResourceName.PRODUCTION_ENVIRONMENT:
+        return action != ActionName.DEPLOYMENT_DEPLOY
+    if resource == ResourceName.STAGING_ENVIRONMENT:
+        return action not in (ActionName.DEPLOYMENT_PREVIEW, ActionName.DEPLOYMENT_DEPLOY)
+    if resource == ResourceName.TEST_ENVIRONMENT:
+        return action not in (ActionName.CODING_TEST, ActionName.VERIFICATION_TEST)
+    if resource == ResourceName.WORKSPACE:
+        return action not in (
+            ActionName.CODING_READ, ActionName.CODING_WRITE, ActionName.CODING_TEST,
+            ActionName.RESEARCH_READ, ActionName.RESEARCH_WRITE,
         )
-    )
-    if is_deployment_action and source != AgentId.DEPLOYMENT_01:
-        return True
+    if resource == ResourceName.RESEARCH_DATA:
+        return action not in (ActionName.RESEARCH_SEARCH, ActionName.RESEARCH_READ)
+    return True
 
-    # 2. Orchestration privilege escalation
-    is_orchestrator_action = (
-        action_val in ("orchestrator.delegate", "orchestrator.coordinate")
-        or request.action in (ActionName.ORCHESTRATOR_DELEGATE, ActionName.ORCHESTRATOR_COORDINATE)
-        or required_capability(request.action) in (
-            CapabilityName.ORCHESTRATOR_DELEGATE,
-            CapabilityName.ORCHESTRATOR_COORDINATE,
-        )
-    )
-    if is_orchestrator_action and source != AgentId.ORCHESTRATOR_01:
-        return True
 
-    # 3. Code modification privilege escalation
-    is_code_write = (
-        action_val == "coding.write"
-        or request.action == ActionName.CODING_WRITE
-        or required_capability(request.action) == CapabilityName.CODING_WRITE
-    )
-    if is_code_write and source != AgentId.CODING_01:
-        return True
+def check_delegation_depth(request: ActionRequest) -> bool:
+    """Return true for a lineage longer than the currently supported delegation model."""
+    return len(request.provenance.delegation_chain) > 2
 
-    return False
+
+def check_environment_context(request: ActionRequest) -> bool:
+    """Flag explicit unsafe environment tags; absence of optional tags is neutral."""
+    tags = {str(k).lower(): str(v).strip().lower()
+            for k, v in request.context.environment_tags.items()}
+    prod_like = tags.get("environment") in {"prod", "production"}
+    untrusted = tags.get("trust") in {"untrusted", "external", "unknown"}
+    debug = tags.get("debug") in {"true", "1", "enabled"}
+    return (prod_like and debug) or (prod_like and untrusted)
 
 
 def check_suspicious_behavior(
     request: ActionRequest,
     triggered_codes: set[ReasonCode] | None = None,
 ) -> bool:
-    """
-    Deterministic rule for SUSPICIOUS_BEHAVIOR (+10).
-
-    Triggers when a high-risk compound violation is observed:
-    PRIVILEGE_ESCALATION combined with at least one other violation
-    (CAPABILITY_MISMATCH, AUTHORITY_MISMATCH, or PROVENANCE_ANOMALY).
-    """
     if triggered_codes is None:
         triggered_codes = set()
-        if check_capability_mismatch(request):
-            triggered_codes.add(ReasonCode.CAPABILITY_MISMATCH)
-        if check_authority_mismatch(request):
-            triggered_codes.add(ReasonCode.AUTHORITY_MISMATCH)
-        if check_provenance_anomaly(request):
-            triggered_codes.add(ReasonCode.PROVENANCE_ANOMALY)
-        if check_privilege_escalation(request):
-            triggered_codes.add(ReasonCode.PRIVILEGE_ESCALATION)
-
-    has_priv_esc = ReasonCode.PRIVILEGE_ESCALATION in triggered_codes
-    has_other = any(
-        code in triggered_codes
-        for code in (
-            ReasonCode.CAPABILITY_MISMATCH,
-            ReasonCode.AUTHORITY_MISMATCH,
-            ReasonCode.PROVENANCE_ANOMALY,
+        checks = (
+            (ReasonCode.CAPABILITY_MISMATCH, check_capability_mismatch),
+            (ReasonCode.AUTHORITY_MISMATCH, check_authority_mismatch),
+            (ReasonCode.PROVENANCE_ANOMALY, check_provenance_anomaly),
+            (ReasonCode.PRIVILEGE_ESCALATION, check_privilege_escalation),
         )
-    )
-    return has_priv_esc and has_other
+        for code, check in checks:
+            if check(request):
+                triggered_codes.add(code)
+    primary = {
+        ReasonCode.CAPABILITY_MISMATCH,
+        ReasonCode.AUTHORITY_MISMATCH,
+        ReasonCode.PROVENANCE_ANOMALY,
+        ReasonCode.PRIVILEGE_ESCALATION,
+    }
+    return len(triggered_codes.intersection(primary)) >= 2
