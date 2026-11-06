@@ -41,7 +41,7 @@ function DecisionStrip({ events }) {
 }
 
 const REASON_CODE_COLORS = {
-  POLICY_DENIED:        "#38bdf8",
+  POLICY_DENIED:        "rgb(var(--accent))",
   DETERMINISTIC_RULES:  "#7a9cc8",
   PROVENANCE_ANOMALY:   "#fbbf24",
 };
@@ -147,7 +147,7 @@ export function AgentActivityPanel({
           <div className="text-[12px] font-semibold text-ink2 mb-2">Decision engine</div>
           <div className="flex flex-col gap-2">
             {[
-              { label: "Cedar policy",        count: cedarDeny,  color: "#38bdf8" },
+              { label: "Cedar policy",        count: cedarDeny,  color: "rgb(var(--accent))" },
               { label: "Deterministic rules",  count: rulesDeny,  color: "#7a9cc8" },
               { label: "Provenance",           count: provDeny,   color: "#fbbf24" },
             ].map(({ label, count, color }) => (
