@@ -13,7 +13,7 @@ const AGENT_ROLES = {
 };
 
 const STATE_DOT = {
-  ACTIVE:      { color: "#38bdf8", pulse: true },
+  ACTIVE:      { color: "rgb(var(--accent))", pulse: true },
   QUARANTINED: { color: "#f87171", pulse: true },
   SUSPICIOUS:  { color: "#fbbf24", pulse: false },
   TERMINATED:  { color: "#1e3050", pulse: false },
