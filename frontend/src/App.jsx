@@ -31,7 +31,7 @@ function messageFor(err) {
 }
 
 export default function App() {
-  const { workflowId, snapshot, error: pollError, track, untrack, refresh } = useKavach();
+  const { snapshot, error: pollError, track, untrack, refresh } = useKavach();
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(true);
   // Shield is the default experience. The workflow composer is a separate view.
@@ -76,6 +76,8 @@ export default function App() {
 
   useEffect(() => {
     loadShieldState();
+    const timer = window.setInterval(loadShieldState, 5000);
+    return () => window.clearInterval(timer);
   }, [loadShieldState]);
 
   const status = snapshot?.status ?? null;
