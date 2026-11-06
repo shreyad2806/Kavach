@@ -56,11 +56,11 @@ function DecisionRow({ event, selected, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={\`w-full grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_92px_72px] gap-3 items-center px-3 py-3 text-left border-b border-white/[.045] transition-colors \${selected ? "bg-cyan-400/[.075]" : "hover:bg-white/[.025]"}\`}
+      className={`w-full grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_92px_72px] gap-3 items-center px-3 py-3 text-left border-b border-white/[.045] transition-colors ${selected ? "bg-cyan-400/[.075]" : "hover:bg-white/[.025]"}`}
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className={\`w-1.5 h-1.5 rounded-full flex-shrink-0 \${denied ? "bg-rose-400" : "bg-emerald-400"}\`} />
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${denied ? "bg-rose-400" : "bg-emerald-400"}`} />
           <span className="font-mono text-[12px] text-slate-200 truncate">{event.source_agent}</span>
         </div>
         <div className="font-mono text-[11px] text-slate-500 mt-1 truncate">{event.action} <span className="text-slate-700">/</span> {event.resource}</div>
@@ -100,8 +100,8 @@ function PipelineCard({ event }) {
               const fail = status === "FAIL" || status === "DENY" || status === "BLOCK";
               return (
                 <div key={step.key} className="flex items-center gap-2">
-                  <div className={\`min-w-[102px] rounded-xl border px-2.5 py-2 \${pass ? "border-emerald-400/20 bg-emerald-400/[.06]" : fail ? "border-rose-400/25 bg-rose-400/[.06]" : "border-white/[.07] bg-white/[.02]"}\`}>
-                    <div className={\`text-[10px] font-semibold \${pass ? "text-emerald-300" : fail ? "text-rose-300" : "text-slate-500"}\`}>{step.label}</div>
+                  <div className={`min-w-[102px] rounded-xl border px-2.5 py-2 ${pass ? "border-emerald-400/20 bg-emerald-400/[.06]" : fail ? "border-rose-400/25 bg-rose-400/[.06]" : "border-white/[.07] bg-white/[.02]"}`}>
+                    <div className={`text-[10px] font-semibold ${pass ? "text-emerald-300" : fail ? "text-rose-300" : "text-slate-500"}`}>{step.label}</div>
                     <div className="text-[9px] font-mono mt-1 text-slate-500">{status.replaceAll("_", " ")}</div>
                   </div>
                   {i !== SECTIONS.length - 1 && <ArrowRight size={12} className="text-slate-700 hidden lg:block" />}
@@ -134,8 +134,8 @@ function FleetCard({ agents, onAgentSelect, selectedAgent }) {
       {agents.length === 0 ? <EmptyState title="Fleet data unavailable" description="The dashboard will populate when the API returns registered agent identities." /> : (
         <div className="space-y-1">
           {agents.map(agent => (
-            <button key={agent.agent_id} onClick={() => onAgentSelect?.(agent.agent_id)} className={\`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left border transition-colors \${selectedAgent === agent.agent_id ? "bg-cyan-400/[.06] border-cyan-400/20" : "border-transparent hover:bg-white/[.025]"}\`}>
-              <span className={\`w-2 h-2 rounded-full \${agent.state === "ACTIVE" ? "bg-emerald-400" : agent.state === "QUARANTINED" ? "bg-rose-400" : "bg-amber-300"}\`} />
+            <button key={agent.agent_id} onClick={() => onAgentSelect?.(agent.agent_id)} className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left border transition-colors ${selectedAgent === agent.agent_id ? "bg-cyan-400/[.06] border-cyan-400/20" : "border-transparent hover:bg-white/[.025]"}`}>
+              <span className={`w-2 h-2 rounded-full ${agent.state === "ACTIVE" ? "bg-emerald-400" : agent.state === "QUARANTINED" ? "bg-rose-400" : "bg-amber-300"}`} />
               <span className="min-w-0 flex-1">
                 <span className="block text-[12px] font-mono text-slate-200">{agent.agent_id}</span>
                 <span className="block text-[10px] text-slate-500 capitalize">{agent.role || "autonomous agent"}</span>
@@ -206,7 +206,7 @@ export function LandingPanel({
         <Panel className="p-4 flex flex-col">
           <div className="flex items-center justify-between">
             <div><div className="text-sm font-semibold text-slate-100">Protection posture</div><div className="text-[11px] text-slate-500 mt-1">Control plane connectivity</div></div>
-            <div className={\`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] \${connected ? "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300" : "border-rose-400/20 bg-rose-400/[.06] text-rose-300"}\`}><span className={\`w-1.5 h-1.5 rounded-full \${connected ? "bg-emerald-400" : "bg-rose-400"}\`} />{connected ? "API connected" : "API unavailable"}</div>
+            <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] ${connected ? "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300" : "border-rose-400/20 bg-rose-400/[.06] text-rose-300"}`}><span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400" : "bg-rose-400"}`} />{connected ? "API connected" : "API unavailable"}</div>
           </div>
           <div className="mt-5 space-y-3">
             {[
