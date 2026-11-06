@@ -1,5 +1,6 @@
 /**
- * Thin HTTP client for the Kavach backend.
+ * HTTP client for Kavach's AWS-backed Node BFF.
+ * VITE_API_BASE_URL is the deployed BFF origin. Empty means same-origin /api.
  */
 export class ApiError extends Error {
   constructor(kind, status, message) {
@@ -18,33 +19,30 @@ function classify(status) {
   return "client";
 }
 
+const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+
 async function request(path, options = {}) {
   const init = {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": import.meta.env.VITE_API_KEY || "local-dev-key",
+      ...(import.meta.env.VITE_API_KEY ? { "x-api-key": import.meta.env.VITE_API_KEY } : {}),
       ...options.headers,
     },
   };
-
   let res;
   try {
-    res = await fetch(`/api${path}`, init);
+    res = await fetch(`${apiBase}/api${path}`, init);
   } catch {
     throw new ApiError("offline", 0, "Backend unreachable");
   }
-
-  if (!res.ok) {
-    throw new ApiError(classify(res.status), res.status, `${res.status} ${res.statusText}`);
-  }
+  if (!res.ok) throw new ApiError(classify(res.status), res.status, `${res.status} ${res.statusText}`);
   if (res.status === 204) return null;
   return res.json();
 }
 
 export const api = {
   getHealth: () => request("/health"),
-  // Dashboard is read-only on load; do not reset security/session state here.
   resetDemoSession: () => request("/workflows/demo/reset", { method: "POST", body: JSON.stringify({}) }),
   createWorkflow: (task) => request("/workflows", { method: "POST", body: JSON.stringify({ task }) }),
   startWorkflow: (id) => request(`/workflows/${id}/start`, { method: "POST", body: JSON.stringify({}) }),
