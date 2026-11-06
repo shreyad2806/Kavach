@@ -67,20 +67,21 @@ Frontend build variable:
 |---|---|
 | `VITE_API_BASE_URL` | Leave empty so the browser calls the same-origin Vercel `/api/*` function |
 
-The browser no longer sends an API key. The Vercel function attaches the key server-side. Do not set `VITE_API_KEY`.
+The browser never sends an API key. The Vercel function attaches the key server-side. Do not set `VITE_API_KEY`.
 
 ## AWS configuration
 
-For the AWS CloudFront frontend build, set:
+For the AWS CloudFront frontend build:
 
-- `VITE_API_BASE_URL` to the public AWS Node BFF origin.
-- Keep `API_KEY` on the AWS BFF and FastAPI runtime only.
+- Keep `VITE_API_BASE_URL` empty so the browser calls same-origin `/api/*`.
+- Configure a CloudFront `/api/*` behavior whose origin is the AWS Node BFF; allow the required HTTP methods, forward query strings and request bodies, disable caching, and attach the server-side `x-api-key` origin custom header.
+- Keep `API_KEY` on the AWS BFF and FastAPI runtime only. The CloudFront origin custom header must never be exposed in frontend assets.
 - Store provider credentials in AWS Secrets Manager or the platform's server-side secret store.
 - Configure `ENABLE_EXTERNAL_LLM_FALLBACK=true`, `OPENAI_API_KEY`, and optionally `FALLBACK_LLM_MODEL` only after approving external processing of scan metadata.
 
 ## Important availability boundary
 
-The Vercel preview URL is a second frontend and a server-side API entry point, but it currently proxies the same AWS control plane. It therefore provides a useful second UI URL and can protect against a frontend/CDN deployment issue; **it does not provide full control-plane availability if AWS itself is down**.
+The Vercel preview URL is a second frontend and a server-side API entry point, but it currently proxies the same AWS control plane. It therefore provides a useful second UI URL and can protect against a frontend/CDN deployment issue; **it does not provide full control-plane availability if AWS itself is down**. The CloudFront `/api/*` origin behavior must be configured separately in AWS before the AWS frontend can use the same-origin API client.
 
 The optional model-provider fallback protects the advisory explanation step when Bedrock quota is exhausted. If the requirement expands to survive a complete AWS API/database outage, deploy a second independent runtime with its own durable state store and separately managed credentials, then add health-checked routing. Do not pretend a second frontend URL alone provides that guarantee.
 
