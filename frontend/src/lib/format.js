@@ -22,7 +22,7 @@ export function riskTone(score) {
 export function riskColor(score) {
   if (score >= 80) return "#f87171";
   if (score >= 51) return "#fbbf24";
-  return "#38bdf8";
+  return "rgb(var(--accent))";
 }
 
 // Agent state → badge tone

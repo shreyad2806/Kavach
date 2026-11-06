@@ -87,6 +87,7 @@ class SecurityEventResponse(BaseModel):
     policy_decision: str
     reason_codes: list[str] = Field(default_factory=list)
     risk_score: int | None = None
+    checks: dict[str, str] | None = None
 
 
 # ============================================================================

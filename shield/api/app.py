@@ -437,6 +437,7 @@ async def list_events(limit: int = 100) -> list[SecurityEventResponse]:
                 policy_decision=data.get("policy_decision", ""),
                 reason_codes=data.get("reason_codes", []),
                 risk_score=data.get("risk_score"),
+                checks=data.get("checks"),
             ))
         except (json.JSONDecodeError, Exception):
             continue

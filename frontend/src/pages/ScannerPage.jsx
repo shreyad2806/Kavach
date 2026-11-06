@@ -48,7 +48,7 @@ function riskColor(n) {
   if (n >= 80) return "#f87171";
   if (n >= 51) return "#fbbf24";
   if (n >= 21) return "#7a9cc8";
-  return "#38bdf8";
+  return "rgb(var(--accent))";
 }
 
 // ─── small components ─────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ function RiskGauge({ score }) {
   return (
     <div className="relative w-[96px] h-[96px] flex-shrink-0">
       <svg width="96" height="96" viewBox="0 0 96 96" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="48" cy="48" r={r} fill="none" stroke="#1a2a45" strokeWidth="9" />
+        <circle cx="48" cy="48" r={r} fill="none" stroke="rgb(var(--line))" strokeWidth="9" />
         <circle cx="48" cy="48" r={r} fill="none" stroke={riskColor(pct)} strokeWidth="9"
           strokeDasharray={c} strokeDashoffset={c - (pct / 100) * c}
           strokeLinecap="round" style={{ transition: "stroke-dashoffset .6s ease" }} />
