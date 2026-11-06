@@ -11,9 +11,6 @@ SIGNAL_WEIGHTS: dict[ReasonCode, int] = {
     ReasonCode.PROVENANCE_ANOMALY: 20,
     ReasonCode.PRIVILEGE_ESCALATION: 15,
     ReasonCode.SUSPICIOUS_BEHAVIOR: 10,
-    ReasonCode.IDENTITY_FAILURE: 40,
-    ReasonCode.AGENT_QUARANTINED: 35,
-    ReasonCode.POLICY_DENIED: 20,
 }
 SIGNAL_EXPLANATIONS: dict[ReasonCode, str] = {
     ReasonCode.CAPABILITY_MISMATCH: "Declared capability does not match the capability required by the requested action.",
