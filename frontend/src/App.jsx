@@ -35,6 +35,17 @@ export default function App() {
   const { snapshot, error: pollError, track, untrack, refresh } = useKavach();
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(true);
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem("kavach-theme");
+      return ["navy-dark", "navy-light", "rust-dark", "rust-light"].includes(saved) ? saved : "navy-dark";
+    } catch { return "navy-dark"; }
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try { window.localStorage.setItem("kavach-theme", theme); } catch { /* storage is optional */ }
+  }, [theme]);
   // Shield is the default experience. The workflow composer is a separate view.
   const [view, setView] = useState("shield");
   const [task, setTask] = useState("");
@@ -167,10 +178,10 @@ export default function App() {
   }, [refresh, loadShieldState]);
 
   return (
-    <div className="flex min-h-screen w-full">
+    <div data-theme={theme} className="flex min-h-screen w-full bg-bg text-ink transition-colors duration-200">
       <Sidebar activePage={page} onNavigate={setPage} collapsed={collapsed} onToggle={() => setCollapsed(v => !v)} />
       <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
-        <TopBar errorKind={pollError?.kind ?? (fleetError ? "offline" : null)} connected={!pollError && !fleetError} loading={false} onRefresh={handleRefresh} />
+        <TopBar errorKind={pollError?.kind ?? (fleetError ? "offline" : null)} connected={!pollError && !fleetError} loading={false} onRefresh={handleRefresh} theme={theme} onThemeChange={setTheme} />
         <main className="flex-1 px-4 py-5 sm:px-6 overflow-y-auto">
           <div className="mx-auto max-w-[1440px]">
             {page === "scanner" ? <ScannerPage /> : view === "run" ? (
