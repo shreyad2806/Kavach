@@ -1,7 +1,7 @@
 /**
  * HTTP client for Kavach's API.
- * Vercel uses its same-origin serverless BFF (/api/*); AWS builds set
- * VITE_API_BASE_URL to the AWS BFF origin. Never put secrets in VITE_*.
+ * Both hosted frontends call same-origin /api routes: Vercel uses its serverless
+ * BFF; AWS CloudFront routes /api/* to the AWS BFF. Never put secrets in VITE_*.
  */
 export class ApiError extends Error {
   constructor(kind, status, message) {
