@@ -52,3 +52,22 @@ export function normalizeEvents(value) {
         : [];
   return source.map(normalizeEvent).filter(Boolean);
 }
+
+export function normalizeIncidents(value) {
+  const source = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.incidents)
+      ? value.incidents
+      : [];
+  return source.filter(item => item && typeof item === "object" && item.incident_id).map(item => ({
+    ...item,
+    incident_id: String(item.incident_id),
+    agent_id: String(item.agent_id ?? "unknown"),
+    status: String(item.status ?? "UNKNOWN"),
+    severity: String(item.severity ?? "UNKNOWN"),
+    reason_codes: Array.isArray(item.reason_codes) ? item.reason_codes.map(String) : [],
+    request_ids: Array.isArray(item.request_ids) ? item.request_ids.map(String) : [],
+    timestamp: item.timestamp ?? null,
+    description: String(item.description ?? ""),
+  }));
+}
