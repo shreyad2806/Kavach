@@ -57,13 +57,13 @@ function HomePage({runs,navigate,choose}) {
         <div className="hero-visual-aura"/>
         <svg className="security-visual-svg" viewBox="0 0 620 440" role="img" aria-label="Luminous coral and electric blue shield floating above a holographic platform">
           <defs>
-            <radialGradient id="globeFill" cx="50%" cy="42%" r="58%"><stop offset="0" stopColor="#286db8" stopOpacity=".48"/><stop offset=".68" stopColor="#0b3265" stopOpacity=".2"/><stop offset="1" stopColor="#06152b" stopOpacity="0"/></radialGradient>
+            <radialGradient id="globeFill" cx="50%" cy="42%" r="58%"><stop offset="0" stopColor="#318bff" stopOpacity=".62"/><stop offset=".48" stopColor="#1768c8" stopOpacity=".34"/><stop offset=".78" stopColor="#0b3265" stopOpacity=".18"/><stop offset="1" stopColor="#06152b" stopOpacity="0"/></radialGradient>
             <linearGradient id="shieldFace" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffb6a5" stopOpacity=".88"/><stop offset=".25" stopColor="#ff6d69" stopOpacity=".48"/><stop offset=".53" stopColor="#6c68ff" stopOpacity=".34"/><stop offset=".8" stopColor="#1b9dff" stopOpacity=".54"/><stop offset="1" stopColor="#a8eaff" stopOpacity=".78"/></linearGradient>
             <linearGradient id="shieldEdge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff0e9"/><stop offset=".32" stopColor="#ff776d"/><stop offset=".7" stopColor="#7e83ff"/><stop offset="1" stopColor="#69d8ff"/></linearGradient>
             <linearGradient id="checkStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff"/><stop offset=".55" stopColor="#ffddd6"/><stop offset="1" stopColor="#8beaff"/></linearGradient>
             <linearGradient id="platformLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#ff6b70" stopOpacity="0"/><stop offset=".22" stopColor="#ff7a78"/><stop offset=".52" stopColor="#fff0ed"/><stop offset=".78" stopColor="#42caff"/><stop offset="1" stopColor="#42caff" stopOpacity="0"/></linearGradient>
             <radialGradient id="platformGlow"><stop offset="0" stopColor="#ff796e" stopOpacity=".48"/><stop offset=".48" stopColor="#388fff" stopOpacity=".2"/><stop offset="1" stopColor="#168cff" stopOpacity="0"/></radialGradient>
-            <filter id="shieldGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="9" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="shieldGlow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="12" result="blur"/><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="innerGlow"/><feMerge><feMergeNode in="blur"/><feMergeNode in="innerGlow"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
             <filter id="softGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="15"/></filter>
             <pattern id="globeDots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" fill="#70caff" opacity=".78"/></pattern>
           </defs>
@@ -78,7 +78,7 @@ function HomePage({runs,navigate,choose}) {
           <path d="M112 220 C165 70 438 54 520 172" fill="none" stroke="#35aaff" strokeWidth="1.5" opacity=".42"/>
           <path d="M98 190 C176 306 430 320 536 160" fill="none" stroke="#ff796e" strokeWidth="1.8" opacity=".78"/>
           <path d="M124 250 C220 350 438 310 508 216" fill="none" stroke="#57caff" strokeWidth="1.3" opacity=".62"/>
-          <g filter="url(#softGlow)" opacity=".7"><ellipse cx="310" cy="348" rx="160" ry="42" fill="url(#platformGlow)"/></g>
+          <g filter="url(#softGlow)" opacity=".95"><ellipse cx="310" cy="348" rx="190" ry="55" fill="url(#platformGlow)"/><ellipse cx="310" cy="341" rx="90" ry="22" fill="#ff716d" opacity=".22"/></g>
           <g fill="none" strokeLinecap="round">
             <ellipse cx="310" cy="344" rx="184" ry="42" stroke="#298fff" strokeWidth="2" opacity=".8"/>
             <ellipse cx="310" cy="341" rx="155" ry="31" stroke="#60caff" strokeWidth="2.5" opacity=".8"/>
@@ -87,7 +87,8 @@ function HomePage({runs,navigate,choose}) {
             <path d="M126 343 Q310 405 494 343" stroke="#2e91ff" strokeWidth="1.2" opacity=".7"/>
             <path d="M180 331 Q310 369 440 331" stroke="#ffe3de" strokeWidth="1.5" opacity=".7"/>
           </g>
-          <path d="M310 95 L383 136 L376 246 Q365 294 310 326 Q255 294 244 246 L237 136Z" fill="#ff786d" opacity=".17" filter="url(#softGlow)"/>
+          <g transform="translate(310 196) scale(.78) translate(-310 -196)">
+<path d="M310 95 L383 136 L376 246 Q365 294 310 326 Q255 294 244 246 L237 136Z" fill="#ff786d" opacity=".17" filter="url(#softGlow)"/>
           <g filter="url(#shieldGlow)">
             <path d="M310 73 L391 119 L383 229 Q371 286 310 317 Q249 286 237 229 L229 119Z" fill="url(#shieldFace)" stroke="url(#shieldEdge)" strokeWidth="5" strokeLinejoin="round"/>
             <path d="M310 91 L374 128 L367 226 Q357 270 310 294 Q263 270 253 226 L246 128Z" fill="#071a36" fillOpacity=".7" stroke="#ffd2c8" strokeWidth="2.2" strokeLinejoin="round"/>
@@ -100,6 +101,7 @@ function HomePage({runs,navigate,choose}) {
           <g fill="#ff8b7e"><circle cx="115" cy="218" r="4"/><circle cx="493" cy="161" r="3.5"/></g>
           <g fill="#64cfff"><circle cx="475" cy="248" r="3.5"/><circle cx="171" cy="104" r="3"/></g>
           <g fill="none" stroke="#ff8278" opacity=".45"><path d="M310 318V335"/><path d="M278 309L257 337"/><path d="M342 309L363 337"/></g>
+</g>
         </svg>
         <div className="hero-node hero-node-agent"><ShieldAlert size={16}/><span><b>Attack Simulation</b><small>Realistic threat scenarios</small></span></div>
         <div className="hero-node hero-node-policy"><Layers3 size={16}/><span><b>Policy Enforcement</b><small>Cedar-based authorization</small></span></div>
