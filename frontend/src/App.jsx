@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Activity, AlertOctagon, ArrowRight, Bell, Bot, Boxes, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Code2, Command, Database, Download, FileText, FlaskConical, Home, Layers3, Lock, Menu, Moon, Network, Play, ScanLine, Shield, ShieldAlert, ShieldCheck, Sparkles, Sun, UploadCloud, UserRound, Workflow, X, Zap } from "lucide-react";
+import { Activity, AlertOctagon, ArrowRight, Bell, Bot, Boxes, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Code2, Command, Database, Download, FileText, FlaskConical, Home, Layers3, Lock, Menu, Moon, Network, Play, ScanLine, Search, Shield, ShieldAlert, ShieldCheck, Sparkles, Sun, UploadCloud, UserRound, Workflow, X, Zap } from "lucide-react";
 
 const NAV = [
   ["home","Home",Home,"WORKSPACE"],["simulator","Simulator",FlaskConical,"WORKSPACE"],["scenarios","Scenarios",ShieldCheck,"WORKSPACE"],
@@ -47,27 +47,23 @@ function HomePage({runs,navigate,choose}) {
     <section className="hero-console">
       <div className="hero-copy">
         <div className="eyebrow"><i/> ZERO-TRUST RUNTIME SECURITY</div>
-        <h1>KAVACH<br/><em>Runtime Security Simulator</em></h1>
-        <p>Explore how autonomous agents behave under pressure. Run controlled attack scenarios, inspect policy decisions, and understand where zero-trust enforcement steps in.</p>
-        <div className="hero-actions">
-          <Button onClick={()=>navigate("simulator")} icon={Play}>Start a simulation</Button>
-          <Button kind="outline" onClick={()=>navigate("scenarios")}>Explore scenarios <ArrowRight size={14}/></Button>
-        </div>
-        <div className="hero-capabilities">
-          <span><Zap size={16}/> Simulate threats</span><span><Bot size={16}/> Test agents</span><span><Layers3 size={16}/> Evaluate policies</span><span><Activity size={16}/> Inspect traces</span>
+        <h1>KAVACH</h1><h2>Runtime Security <em>Simulator</em></h2>
+        <p>Simulate real-world attacks, enforce zero-trust policies, and analyze autonomous agent behavior in a safe, controlled environment.</p>
+        <div className="hero-capabilities ref-capabilities">
+          <span><Zap size={19}/> Simulate threats</span><span><Layers3 size={19}/> Test agents</span><span><ShieldCheck size={19}/> Enforce policies</span><span><Activity size={19}/> Analyze results</span>
         </div>
       </div>
       <div className="hero-visual hero-visual-premium" aria-label="Glowing three-dimensional zero-trust shield with holographic security field">
         <div className="hero-visual-aura"/>
         <svg className="security-visual-svg" viewBox="0 0 620 440" role="img" aria-label="Luminous coral and electric blue shield floating above a holographic platform">
           <defs>
-            <radialGradient id="globeFill" cx="50%" cy="42%" r="58%"><stop offset="0" stopColor="#286db8" stopOpacity=".48"/><stop offset=".68" stopColor="#0b3265" stopOpacity=".2"/><stop offset="1" stopColor="#06152b" stopOpacity="0"/></radialGradient>
+            <radialGradient id="globeFill" cx="50%" cy="42%" r="58%"><stop offset="0" stopColor="#318bff" stopOpacity=".62"/><stop offset=".48" stopColor="#1768c8" stopOpacity=".34"/><stop offset=".78" stopColor="#0b3265" stopOpacity=".18"/><stop offset="1" stopColor="#06152b" stopOpacity="0"/></radialGradient>
             <linearGradient id="shieldFace" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffb6a5" stopOpacity=".88"/><stop offset=".25" stopColor="#ff6d69" stopOpacity=".48"/><stop offset=".53" stopColor="#6c68ff" stopOpacity=".34"/><stop offset=".8" stopColor="#1b9dff" stopOpacity=".54"/><stop offset="1" stopColor="#a8eaff" stopOpacity=".78"/></linearGradient>
             <linearGradient id="shieldEdge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff0e9"/><stop offset=".32" stopColor="#ff776d"/><stop offset=".7" stopColor="#7e83ff"/><stop offset="1" stopColor="#69d8ff"/></linearGradient>
             <linearGradient id="checkStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff"/><stop offset=".55" stopColor="#ffddd6"/><stop offset="1" stopColor="#8beaff"/></linearGradient>
             <linearGradient id="platformLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#ff6b70" stopOpacity="0"/><stop offset=".22" stopColor="#ff7a78"/><stop offset=".52" stopColor="#fff0ed"/><stop offset=".78" stopColor="#42caff"/><stop offset="1" stopColor="#42caff" stopOpacity="0"/></linearGradient>
             <radialGradient id="platformGlow"><stop offset="0" stopColor="#ff796e" stopOpacity=".48"/><stop offset=".48" stopColor="#388fff" stopOpacity=".2"/><stop offset="1" stopColor="#168cff" stopOpacity="0"/></radialGradient>
-            <filter id="shieldGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="9" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="shieldGlow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="12" result="blur"/><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="innerGlow"/><feMerge><feMergeNode in="blur"/><feMergeNode in="innerGlow"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
             <filter id="softGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="15"/></filter>
             <pattern id="globeDots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" fill="#70caff" opacity=".78"/></pattern>
           </defs>
@@ -82,7 +78,7 @@ function HomePage({runs,navigate,choose}) {
           <path d="M112 220 C165 70 438 54 520 172" fill="none" stroke="#35aaff" strokeWidth="1.5" opacity=".42"/>
           <path d="M98 190 C176 306 430 320 536 160" fill="none" stroke="#ff796e" strokeWidth="1.8" opacity=".78"/>
           <path d="M124 250 C220 350 438 310 508 216" fill="none" stroke="#57caff" strokeWidth="1.3" opacity=".62"/>
-          <g filter="url(#softGlow)" opacity=".7"><ellipse cx="310" cy="348" rx="160" ry="42" fill="url(#platformGlow)"/></g>
+          <g filter="url(#softGlow)" opacity=".95"><ellipse cx="310" cy="348" rx="190" ry="55" fill="url(#platformGlow)"/><ellipse cx="310" cy="341" rx="90" ry="22" fill="#ff716d" opacity=".22"/></g>
           <g fill="none" strokeLinecap="round">
             <ellipse cx="310" cy="344" rx="184" ry="42" stroke="#298fff" strokeWidth="2" opacity=".8"/>
             <ellipse cx="310" cy="341" rx="155" ry="31" stroke="#60caff" strokeWidth="2.5" opacity=".8"/>
@@ -91,7 +87,8 @@ function HomePage({runs,navigate,choose}) {
             <path d="M126 343 Q310 405 494 343" stroke="#2e91ff" strokeWidth="1.2" opacity=".7"/>
             <path d="M180 331 Q310 369 440 331" stroke="#ffe3de" strokeWidth="1.5" opacity=".7"/>
           </g>
-          <path d="M310 95 L383 136 L376 246 Q365 294 310 326 Q255 294 244 246 L237 136Z" fill="#ff786d" opacity=".17" filter="url(#softGlow)"/>
+          <g transform="translate(310 196) scale(.78) translate(-310 -196)">
+<path d="M310 95 L383 136 L376 246 Q365 294 310 326 Q255 294 244 246 L237 136Z" fill="#ff786d" opacity=".17" filter="url(#softGlow)"/>
           <g filter="url(#shieldGlow)">
             <path d="M310 73 L391 119 L383 229 Q371 286 310 317 Q249 286 237 229 L229 119Z" fill="url(#shieldFace)" stroke="url(#shieldEdge)" strokeWidth="5" strokeLinejoin="round"/>
             <path d="M310 91 L374 128 L367 226 Q357 270 310 294 Q263 270 253 226 L246 128Z" fill="#071a36" fillOpacity=".7" stroke="#ffd2c8" strokeWidth="2.2" strokeLinejoin="round"/>
@@ -104,24 +101,25 @@ function HomePage({runs,navigate,choose}) {
           <g fill="#ff8b7e"><circle cx="115" cy="218" r="4"/><circle cx="493" cy="161" r="3.5"/></g>
           <g fill="#64cfff"><circle cx="475" cy="248" r="3.5"/><circle cx="171" cy="104" r="3"/></g>
           <g fill="none" stroke="#ff8278" opacity=".45"><path d="M310 318V335"/><path d="M278 309L257 337"/><path d="M342 309L363 337"/></g>
+</g>
         </svg>
-        <div className="hero-node hero-node-agent"><Bot size={16}/><span><b>Agent identity</b><small>Verified principal</small></span></div>
-        <div className="hero-node hero-node-policy"><Layers3 size={16}/><span><b>Policy gate</b><small>Cedar evaluation</small></span></div>
-        <div className="hero-node hero-node-threat"><ShieldAlert size={16}/><span><b>Threat signal</b><small>Scenario input</small></span></div>
+        <div className="hero-node hero-node-agent"><ShieldAlert size={16}/><span><b>Attack Simulation</b><small>Realistic threat scenarios</small></span></div>
+        <div className="hero-node hero-node-policy"><Layers3 size={16}/><span><b>Policy Enforcement</b><small>Cedar-based authorization</small></span></div>
+        <div className="hero-node hero-node-threat"><Network size={16}/><span><b>Agent Control</b><small>Multi-agent orchestration</small></span></div>
         <div className="hero-connector connector-agent"/><div className="hero-connector connector-policy"/><div className="hero-connector connector-threat"/>
       </div>
     </section>
     <section className="home-workspace">
       <Panel title="Start a security simulation" sub="Choose a pre-built scenario or configure a protected workflow." className="launch-panel">
-        <div className="launch-content">
-          <div className="launch-steps">{[["01","Select scenario","Choose an attack path"],["02","Configure agents","Set identity and capabilities"],["03","Evaluate policies","Inspect the authorization gates"],["04","Run & analyze","Review the execution trace"]].map(([n,title,desc],i)=><div className="launch-step" key={n}><span className={i===0?"step-number active":"step-number"}>{n}</span><span><b>{title}</b><small>{desc}</small></span>{i!==3&&<i className="step-connector"/>}</div>)}</div>
-          <div className="launch-actions"><div><small>READY TO BEGIN</small><b>Sandbox environment · Local demo data</b></div><Button onClick={()=>navigate("simulator")} icon={Play}>Open simulation lab</Button></div>
+        <div className="launch-content ref-launch-content">
+          <div className="launch-steps">{[["1","Select Scenario"],["2","Configure Agents"],["3","Set Policies"],["4","Run & Analyze"]].map(([n,title],i)=><div className="launch-step ref-launch-step" key={n}><span className={i===0?"step-number active":"step-number"}>{n}</span><span><b>{title}</b></span>{i!==3&&<i className="step-connector"/>}</div>)}</div>
+          <div className="launch-actions ref-launch-actions"><button className="ref-scenario-button" onClick={()=>navigate("scenarios")}><Layers3 size={21}/><span><small>SCENARIO</small><b>Unauthorized Data Access (Zero-Trust)</b></span><ChevronDown size={17}/></button><Button onClick={()=>navigate("simulator")} icon={Play}>Run Simulation</Button></div>
         </div>
       </Panel>
       <div className="home-side-stack">
-        <Panel title="Simulator modules" sub="Capabilities represented in this local demo">
-          <div className="module-list">{modules.map(([Icon,title,desc])=><div key={title}><span><Icon size={16}/></span><div><b>{title}</b><small>{desc}</small></div><Badge tone="info">Demo</Badge></div>)}</div>
-          <div className="demo-caption"><Sparkles size={13}/> Illustrative environment · No live backend connection</div>
+        <Panel title="System Status" sub="Local simulator environment" action={<Badge tone="info">Demo mode</Badge>}>
+          <div className="module-list">{modules.map(([Icon,title,desc])=><div key={title}><span><Icon size={16}/></span><div><b>{title}</b><small>{desc}</small></div><Badge tone="info">Local</Badge></div>)}</div>
+          <div className="demo-caption"><Sparkles size={13}/> Backend connectivity has not been verified. No live health is implied.</div>
         </Panel>
         <Panel title="Recent simulations" sub="Runs created during this browser session" action={<button className="text-link" onClick={()=>navigate("audit")}>Open audit <ArrowRight size={13}/></button>}>
           {runs.length?<div className="recent-list">{runs.slice(0,3).map(r=><div key={r.id}><span className="round-check"><Check size={12}/></span><span><b>{r.name}</b><small>{r.time}</small></span><Badge tone={r.result==="BLOCKED"?"danger":"success"}>{r.result}</Badge></div>)}</div>:<div className="recent-empty"><Clock3 size={20}/><b>No simulation runs yet</b><span>Completed local runs will appear here. Nothing is pre-populated.</span></div>}
@@ -162,7 +160,7 @@ function ScannerPage({addEvent}){const ref=useRef(null);const [file,setFile]=use
 function ScenarioModal({scenario,close,confirm}){if(!scenario)return null;return <div className="modal-shade" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="modal"><header><div><h2>Configure · {scenario.name}</h2><p>SIMULATOR ENVIRONMENT · DEMO DATA</p></div><button className="icon-btn" onClick={close}><X size={18}/></button></header><p className="modal-copy">{scenario.desc}</p><div className="notice"><ShieldCheck size={17}/><span><b>Isolated simulator session</b><small>This scenario creates local demo events only. No external agent or system will be called.</small></span></div><div className="modal-actions"><Button kind="outline" onClick={close}>Cancel</Button><Button onClick={()=>confirm(scenario)} icon={Play}>Run scenario</Button></div></div></div>}
 
 export default function App(){
- const [page,setPage]=useState("home"),[theme,setTheme]=useState("dark"),[expanded,setExpanded]=useState(true);
+ const [page,setPage]=useState("home"),[theme,setTheme]=useState("dark"),[expanded,setExpanded]=useState(true),[globalSearch,setGlobalSearch]=useState("");
  const [agents,setAgents]=useState(START_AGENTS),[events,setEvents]=useState(START_EVENTS),[runs,setRuns]=useState(START_RUNS);
  const [selected,setSelected]=useState(null),[scenario,setScenario]=useState(null),[toast,setToast]=useState(""),[notice,setNotice]=useState(false);
  useEffect(()=>{document.documentElement.dataset.kavachTheme=theme},[theme]);
@@ -182,5 +180,5 @@ export default function App(){
  case "audit":content=<AuditPage events={events} runs={runs} inspect={setSelected}/>;break;
  default:content=<HomePage runs={runs} navigate={setPage} choose={setScenario}/>;
  }
- return <div className={"app-shell "+(theme==="light"?"theme-light":"")}><aside className={"sidebar "+(!expanded?"collapsed":"")}><div className="brand"><span className="brand-mark"><Shield size={24}/></span>{expanded&&<span><b>KAVACH</b><small>Runtime Security</small></span>}<button className="sidebar-toggle" onClick={()=>setExpanded(v=>!v)}><Menu size={18}/></button></div><nav>{["WORKSPACE","SECURITY","MANAGEMENT"].map(group=><div className="nav-group" key={group}>{expanded&&<small>{group}</small>}{NAV.filter(n=>n[3]===group).map(([id,label,Icon])=><button key={id} onClick={()=>setPage(id)} className={"nav-item "+(page===id?"active":"")} title={!expanded?label:undefined}><Icon size={18}/>{expanded&&<span>{label}</span>}</button>)}</div>)}</nav>{expanded&&<div className="sidebar-bottom"><div className="sidebar-status"><b><i/>Local simulator</b><small>Demo environment · Offline</small></div></div>}</aside><div className="main-shell"><header className="topbar"><div className="crumbs"><b>KAVACH</b><ChevronRight size={14}/><span>{current}</span><Badge tone="info" dot>SIMULATOR</Badge></div><div className="top-actions"><div className="env-switch"><b>Simulator</b><span title="Production backend connection will be added later">Production</span></div><button className="icon-btn" onClick={()=>setTheme(v=>v==="dark"?"light":"dark")} title="Toggle theme">{theme==="dark"?<Sun size={17}/>:<Moon size={17}/>}</button><div className="notice-wrap"><button className="icon-btn" onClick={()=>setNotice(v=>!v)}><Bell size={17}/><i/></button>{notice&&<div className="notice-pop"><b>Notifications</b><p>You're viewing the local simulator. Live backend alerts are not connected.</p><button onClick={()=>setNotice(false)}>Dismiss</button></div>}</div><div className="profile"><span><UserRound size={16}/></span><b>Security Lead<small>Demo operator</small></b><ChevronDown size={14}/></div></div></header><main className="content">{content}<footer className="footer"><b><Shield size={13}/> KAVACH</b><span>ZERO-TRUST RUNTIME SECURITY</span><span><i/> SIMULATOR MODE · DEMO DATA</span></footer></main></div>{selected&&<TraceModal event={selected} onClose={()=>setSelected(null)}/>}{scenario&&<ScenarioModal scenario={scenario} close={()=>setScenario(null)} confirm={runScenario}/>}{toast&&<div className="toast"><CheckCircle2 size={16}/>{toast}</div>}</div>;
+ return <div className={"app-shell "+(theme==="light"?"theme-light":"")}><aside className={"sidebar "+(!expanded?"collapsed":"")}><div className="brand"><span className="brand-mark"><Shield size={24}/></span>{expanded&&<span><b>KAVACH</b><small>Runtime Security</small></span>}<button className="sidebar-toggle" onClick={()=>setExpanded(v=>!v)}><Menu size={18}/></button></div><nav>{["WORKSPACE","SECURITY","MANAGEMENT"].map(group=><div className="nav-group" key={group}>{expanded&&<small>{group}</small>}{NAV.filter(n=>n[3]===group).map(([id,label,Icon])=><button key={id} onClick={()=>setPage(id)} className={"nav-item "+(page===id?"active":"")} title={!expanded?label:undefined}><Icon size={18}/>{expanded&&<span>{label}</span>}</button>)}</div>)}</nav>{expanded&&<div className="sidebar-bottom"><div className="sidebar-status"><b><i/>Local simulator</b><small>Demo environment · Offline</small></div></div>}</aside><div className="main-shell"><header className="topbar"><div className="crumbs"><b>KAVACH</b><ChevronRight size={14}/><span>{current}</span><Badge tone="info" dot>SIMULATOR</Badge></div><div className="top-actions"><div className="env-switch"><b>▶ Simulator</b><span title="Production backend connection will be added later">Production</span></div><label className="ref-global-search"><Search size={16}/><input value={globalSearch} onChange={e=>setGlobalSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")setPage("scenarios")}} placeholder="Search simulations, agents, policies..."/><kbd>⌘K</kbd></label><button className="icon-btn" onClick={()=>setTheme(v=>v==="dark"?"light":"dark")} title="Toggle theme">{theme==="dark"?<Sun size={17}/>:<Moon size={17}/>}</button><div className="notice-wrap"><button className="icon-btn" onClick={()=>setNotice(v=>!v)}><Bell size={17}/><i/></button>{notice&&<div className="notice-pop"><b>Notifications</b><p>You're viewing the local simulator. Live backend alerts are not connected.</p><button onClick={()=>setNotice(false)}>Dismiss</button></div>}</div><div className="profile"><span><UserRound size={16}/></span><b>Security Lead<small>Demo operator</small></b><ChevronDown size={14}/></div></div></header><main className="content">{content}<footer className="footer"><b><Shield size={13}/> KAVACH</b><span>ZERO-TRUST RUNTIME SECURITY</span><span><i/> SIMULATOR MODE · DEMO DATA</span></footer></main></div>{selected&&<TraceModal event={selected} onClose={()=>setSelected(null)}/>}{scenario&&<ScenarioModal scenario={scenario} close={()=>setScenario(null)} confirm={runScenario}/>}{toast&&<div className="toast"><CheckCircle2 size={16}/>{toast}</div>}</div>;
 }
