@@ -47,11 +47,10 @@ function HomePage({runs,navigate,choose}) {
     <section className="hero-console">
       <div className="hero-copy">
         <div className="eyebrow"><i/> ZERO-TRUST RUNTIME SECURITY</div>
-        <h1>KAVACH<br/><em>Runtime Security Simulator</em></h1>
-        <p>Explore how autonomous agents behave under pressure. Run controlled attack scenarios, inspect policy decisions, and understand where zero-trust enforcement steps in.</p>
-        <div className="hero-actions">
-          <Button onClick={()=>navigate("simulator")} icon={Play}>Start a simulation</Button>
-          <Button kind="outline" onClick={()=>navigate("scenarios")}>Explore scenarios <ArrowRight size={14}/></Button>
+        <h1>KAVACH</h1><h2>Runtime Security <em>Simulator</em></h2>
+        <p>Simulate real-world attacks, enforce zero-trust policies, and analyze autonomous agent behavior in a safe, controlled environment.</p>
+        <div className="hero-capabilities ref-capabilities">
+          <span><Zap size={19}/> Simulate threats</span><span><Layers3 size={19}/> Test agents</span><span><ShieldCheck size={19}/> Enforce policies</span><span><Activity size={19}/> Analyze results</span>
         </div>
         <div className="hero-capabilities">
           <span><Zap size={16}/> Simulate threats</span><span><Bot size={16}/> Test agents</span><span><Layers3 size={16}/> Evaluate policies</span><span><Activity size={16}/> Inspect traces</span>
@@ -105,23 +104,23 @@ function HomePage({runs,navigate,choose}) {
           <g fill="#64cfff"><circle cx="475" cy="248" r="3.5"/><circle cx="171" cy="104" r="3"/></g>
           <g fill="none" stroke="#ff8278" opacity=".45"><path d="M310 318V335"/><path d="M278 309L257 337"/><path d="M342 309L363 337"/></g>
         </svg>
-        <div className="hero-node hero-node-agent"><Bot size={16}/><span><b>Agent identity</b><small>Verified principal</small></span></div>
-        <div className="hero-node hero-node-policy"><Layers3 size={16}/><span><b>Policy gate</b><small>Cedar evaluation</small></span></div>
-        <div className="hero-node hero-node-threat"><ShieldAlert size={16}/><span><b>Threat signal</b><small>Scenario input</small></span></div>
+        <div className="hero-node hero-node-agent"><ShieldAlert size={16}/><span><b>Attack Simulation</b><small>Realistic threat scenarios</small></span></div>
+        <div className="hero-node hero-node-policy"><Layers3 size={16}/><span><b>Policy Enforcement</b><small>Cedar-based authorization</small></span></div>
+        <div className="hero-node hero-node-threat"><Network size={16}/><span><b>Agent Control</b><small>Multi-agent orchestration</small></span></div>
         <div className="hero-connector connector-agent"/><div className="hero-connector connector-policy"/><div className="hero-connector connector-threat"/>
       </div>
     </section>
     <section className="home-workspace">
       <Panel title="Start a security simulation" sub="Choose a pre-built scenario or configure a protected workflow." className="launch-panel">
-        <div className="launch-content">
-          <div className="launch-steps">{[["01","Select scenario","Choose an attack path"],["02","Configure agents","Set identity and capabilities"],["03","Evaluate policies","Inspect the authorization gates"],["04","Run & analyze","Review the execution trace"]].map(([n,title,desc],i)=><div className="launch-step" key={n}><span className={i===0?"step-number active":"step-number"}>{n}</span><span><b>{title}</b><small>{desc}</small></span>{i!==3&&<i className="step-connector"/>}</div>)}</div>
-          <div className="launch-actions"><div><small>READY TO BEGIN</small><b>Sandbox environment · Local demo data</b></div><Button onClick={()=>navigate("simulator")} icon={Play}>Open simulation lab</Button></div>
+        <div className="launch-content ref-launch-content">
+          <div className="launch-steps">{[["1","Select Scenario"],["2","Configure Agents"],["3","Set Policies"],["4","Run & Analyze"]].map(([n,title],i)=><div className="launch-step ref-launch-step" key={n}><span className={i===0?"step-number active":"step-number"}>{n}</span><span><b>{title}</b></span>{i!==3&&<i className="step-connector"/>}</div>)}</div>
+          <div className="launch-actions ref-launch-actions"><button className="ref-scenario-button" onClick={()=>navigate("scenarios")}><Layers3 size={21}/><span><small>SCENARIO</small><b>Unauthorized Data Access (Zero-Trust)</b></span><ChevronDown size={17}/></button><Button onClick={()=>navigate("simulator")} icon={Play}>Run Simulation</Button></div>
         </div>
       </Panel>
       <div className="home-side-stack">
-        <Panel title="Simulator modules" sub="Capabilities represented in this local demo">
-          <div className="module-list">{modules.map(([Icon,title,desc])=><div key={title}><span><Icon size={16}/></span><div><b>{title}</b><small>{desc}</small></div><Badge tone="info">Demo</Badge></div>)}</div>
-          <div className="demo-caption"><Sparkles size={13}/> Illustrative environment · No live backend connection</div>
+        <Panel title="System Status" sub="Local simulator environment" action={<Badge tone="info">Demo mode</Badge>}>
+          <div className="module-list">{modules.map(([Icon,title,desc])=><div key={title}><span><Icon size={16}/></span><div><b>{title}</b><small>{desc}</small></div><Badge tone="info">Local</Badge></div>)}</div>
+          <div className="demo-caption"><Sparkles size={13}/> Backend connectivity has not been verified. No live health is implied.</div>
         </Panel>
         <Panel title="Recent simulations" sub="Runs created during this browser session" action={<button className="text-link" onClick={()=>navigate("audit")}>Open audit <ArrowRight size={13}/></button>}>
           {runs.length?<div className="recent-list">{runs.slice(0,3).map(r=><div key={r.id}><span className="round-check"><Check size={12}/></span><span><b>{r.name}</b><small>{r.time}</small></span><Badge tone={r.result==="BLOCKED"?"danger":"success"}>{r.result}</Badge></div>)}</div>:<div className="recent-empty"><Clock3 size={20}/><b>No simulation runs yet</b><span>Completed local runs will appear here. Nothing is pre-populated.</span></div>}
