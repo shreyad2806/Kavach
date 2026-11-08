@@ -466,3 +466,13 @@ button:disabled{opacity:.55;cursor:not-allowed}
  .ref-scenario-card{min-height:180px}
 }
 @media(prefers-reduced-motion:reduce){.ref-scenario-card{transition:none}}
+
+.ref-global-search{height:38px;width:min(310px,24vw);display:flex;align-items:center;gap:9px;padding:0 11px;border:1px solid #304a66;border-radius:24px;background:linear-gradient(110deg,#0b1b30,#101f37);color:#a9bed4}
+.ref-global-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#f2f6fc;font-size:10px}
+.ref-global-search input::placeholder{color:#8ea4bb}
+.ref-global-search kbd{font:10px 'DM Sans';color:#8da3b8;white-space:nowrap}
+.theme-light .ref-global-search{background:#fffaf3;border-color:#d9c8b8;color:#6b7e90}
+.theme-light .ref-global-search input{color:#19334b}
+.theme-light .ref-global-search input::placeholder{color:#8291a0}
+@media(max-width:850px){.ref-global-search{width:210px}.topbar{padding:0 14px}.top-actions{gap:8px}}
+@media(max-width:620px){.ref-global-search{display:none}}
