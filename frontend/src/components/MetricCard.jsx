@@ -11,12 +11,12 @@ export function MetricCard({ label, value, tone = "neutral", action, className =
   };
 
   const accentColors = {
-    neon:    "#38bdf8",
+    neon:    "rgb(var(--accent))",
     danger:  "#f87171",
     amber:   "#fbbf24",
-    dim:     "#1e3050",
-    neutral: "#1a2a45",
-    allow:   "#38bdf8",
+    dim:     "rgb(var(--line-strong))",
+    neutral: "rgb(var(--line))",
+    allow:   "#249b76",
   };
 
   const accent = accentColors[tone] ?? accentColors.neutral;

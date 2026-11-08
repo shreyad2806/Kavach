@@ -2,7 +2,7 @@
 
 **Zero-Trust Runtime Security for Autonomous Systems**
 
-🔗 **Live Demo:** https://d29nfc5b7f05b1.cloudfront.net
+🔗 **Deployments:**\n- **Vercel preview (PR #4):** https://kavach-git-feat-shield-detection-operator-ui-shreyad.vercel.app\n- **AWS production (CloudFront):** https://d29nfc5b7f05b1.cloudfront.net\n\nSee [the hybrid deployment guide](docs/HYBRID_DEPLOYMENT.md) for routing, secrets, provider fallback, and release details.
 
 Kavach is a security platform that enforces zero-trust principles on multi-agent AI environments. It was built in response to real-world attacks like the HuggingFace breach, where AI agents discovered vulnerabilities in an artifact registry and created hidden channels to exfiltrate credentials.
 

@@ -1,98 +1,87 @@
+import { ArrowRight, CheckCircle2, CircleDashed, ShieldAlert } from "lucide-react";
 import { Panel } from "../ui/Panel.jsx";
-import { checkTone } from "../lib/format.js";
 
 const CHECKS = [
-  { key: "identity",           label: "Identity" },
-  { key: "agent_state",        label: "Agent state" },
-  { key: "capability",         label: "Capability" },
-  { key: "provenance",         label: "Provenance" },
-  { key: "cedar",              label: "Cedar policy" },
-  { key: "deterministic_rules",label: "Det. rules" },
+  { key: "identity", label: "Identity", detail: "Registered principal" },
+  { key: "agent_state", label: "Agent state", detail: "Quarantine / revocation" },
+  { key: "capability", label: "Capability", detail: "Least-privilege grant" },
+  { key: "provenance", label: "Provenance", detail: "Delegation lineage" },
+  { key: "cedar", label: "Cedar policy", detail: "Declarative policy" },
+  { key: "deterministic_rules", label: "Runtime rules", detail: "Context invariants" },
 ];
 
-const TONE_STYLES = {
-  allow:   { border: "#38bdf8", bg: "#38bdf818", text: "#38bdf8" },
-  neon:    { border: "#38bdf8", bg: "#38bdf818", text: "#38bdf8" },
-  danger:  { border: "#f87171", bg: "#f8717118", text: "#f87171" },
-  neutral: { border: "#1a2a45", bg: "#101a2e",   text: "#3d5478" },
+const statusPresentation = (status) => {
+  if (status === "PASS" || status === "ALLOW") return { label: status, className: "text-emerald-300 border-emerald-400/20 bg-emerald-400/[.06]", Icon: CheckCircle2 };
+  if (status === "FAIL" || status === "DENY" || status === "BLOCK") return { label: status, className: "text-rose-300 border-rose-400/20 bg-rose-400/[.06]", Icon: ShieldAlert };
+  return { label: "NOT EVALUATED", className: "text-slate-500 border-white/[.07] bg-white/[.02]", Icon: CircleDashed };
 };
 
-function firstFailedCheck(checks) {
-  for (const { key, label } of CHECKS) {
-    const status = checks?.[key];
-    if (status === "FAIL" || status === "DENY" || status === "BLOCK") {
-      return { key, label, status };
-    }
-  }
-  return null;
-}
-
-function buildExplanation(event, checks) {
-  if (!event) return "Select an authorization event to inspect.";
-  const failed = firstFailedCheck(checks);
-  if (!failed) {
-    return `Request from ${event.source_agent} to ${event.action} on ${event.resource} passed all checks and was allowed.`;
-  }
-  const reasons = event.reason_codes?.join(", ") || failed.status;
-  return `Request from ${event.source_agent} was denied at the ${failed.label} check. Reason: ${reasons}.`;
-}
-
 export function AuthPipeline({ event = null, checks = {} }) {
-  const explanation = buildExplanation(event, checks);
+  const failed = CHECKS.find(({ key }) => ["FAIL", "DENY", "BLOCK"].includes(checks?.[key]));
+  const evaluatedCount = CHECKS.filter(({ key }) => checks?.[key] && checks[key] !== "NOT_EVALUATED").length;
+  const reasons = event?.reason_codes ?? [];
 
   return (
-    <Panel className="p-4 flex flex-col gap-4 h-full">
-      <div className="text-[14px] font-bold text-ink">Authorisation pipeline</div>
-
-      {/* Nodes + connector line */}
-      <div className="pipeline-nodes relative flex items-start justify-between gap-1 overflow-x-auto pb-1">
-        {/* Connector line behind nodes */}
-        <div
-          className="pipeline-connector absolute top-[17px] left-[17px] right-[17px] h-[2px] bg-line2 pointer-events-none"
-          aria-hidden="true"
-        />
-
-        {CHECKS.map(({ key, label }, i) => {
-          const status = checks[key] || "NOT_EVALUATED";
-          const tone = checkTone(status);
-          const styles = TONE_STYLES[tone] || TONE_STYLES.neutral;
-          const isDecision = i === CHECKS.length - 1;
-
-          return (
-            <div key={key} className="flex flex-col items-center gap-1.5 flex-shrink-0 relative z-10">
-              {/* Circle */}
-              <div
-                className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-[10px] font-bold font-mono border-2"
-                style={{
-                  borderColor: styles.border,
-                  background: styles.bg,
-                  color: styles.text,
-                  boxShadow: tone === "allow" || tone === "neon" ? "0 0 8px rgba(56,189,248,.25)" : tone === "danger" ? "0 0 8px rgba(248,113,113,.2)" : "none",
-                }}
-                aria-label={`${label}: ${status}`}
-              >
-                {tone === "allow" || tone === "neon" ? "✓" : tone === "danger" ? "✗" : "—"}
-              </div>
-              {/* Label */}
-              <div className="text-[10.5px] text-ink3 text-center leading-tight max-w-[56px]">
-                {label}
-              </div>
-              {/* Status in mono — a stage that never ran says so explicitly. */}
-              <div
-                className="text-[9.5px] font-mono font-semibold text-center leading-tight"
-                style={{ color: styles.text }}
-              >
-                {status === "NOT_EVALUATED" ? "NOT EVALUATED" : status}
-              </div>
-            </div>
-          );
-        })}
+    <Panel className="p-4 sm:p-5 flex flex-col gap-4 h-full">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-100">Authorization trace</div>
+          <div className="text-[11px] text-slate-500 mt-1">Observed gate results from the selected authorization request.</div>
+          <div className="text-[10px] text-slate-600 mt-1">{evaluatedCount} of {CHECKS.length} checks evaluated</div>
+        </div>
+        {event && (
+          <span className={`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full border ${event.policy_decision === "ALLOW" ? "text-emerald-300 border-emerald-400/20 bg-emerald-400/[.06]" : "text-rose-300 border-rose-400/20 bg-rose-400/[.06]"}`}>
+            {event.policy_decision}
+          </span>
+        )}
       </div>
 
-      {/* Plain-English explanation */}
-      <p className="text-[12.5px] text-ink3 leading-relaxed border-t border-line pt-3">
-        {explanation}
-      </p>
+      {!event ? (
+        <div className="flex flex-col items-center justify-center text-center py-8">
+          <div className="w-10 h-10 rounded-xl border border-white/[.07] bg-white/[.02] flex items-center justify-center mb-3"><CircleDashed size={17} className="text-slate-500" /></div>
+          <div className="text-xs font-medium text-slate-300">Select a runtime decision</div>
+          <div className="text-[11px] text-slate-500 mt-1">The full authorization trace will appear here.</div>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {CHECKS.map(({ key, label, detail }, index) => {
+              const status = checks[key] || "NOT_EVALUATED";
+              const presentation = statusPresentation(status);
+              const Icon = presentation.Icon;
+              return (
+                <div key={key} className={`rounded-xl border px-3 py-3 min-w-0 ${presentation.className}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold">{label}</span>
+                    <Icon size={13} className="flex-shrink-0" />
+                  </div>
+                  <div className="text-[9px] opacity-60 mt-1">{detail}</div>
+                  <div className="font-mono text-[9px] tracking-wide mt-3">{presentation.label}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="border-t border-white/[.06] pt-3">
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-300 mb-2">
+              {failed ? <ShieldAlert size={13} className="text-rose-300" /> : <CheckCircle2 size={13} className="text-emerald-300" />}
+              {failed ? `Stopped at ${failed.label}` : event.policy_decision === "ALLOW" ? "Request passed authorization" : "Request denied"}
+            </div>
+            <p className="text-[11px] leading-relaxed text-slate-500">
+              {reasons.length
+                ? reasons.map(value => value.replaceAll("_", " ").toLowerCase()).join(" · ")
+                : failed
+                  ? `The ${failed.label.toLowerCase()} gate rejected this operation. Later checks are not treated as approval.`
+                  : event.policy_decision === "ALLOW"
+                    ? `${event.source_agent} was authorized to perform ${event.action} against ${event.resource}.`
+                    : "The request was denied by the authorization control plane."}
+            </p>
+            <div className="grid grid-cols-2 gap-3 mt-3 text-[10px]">
+              <div><span className="text-slate-600">Request</span><div className="font-mono text-slate-400 mt-1 truncate">{event.request_id}</div></div>
+              <div><span className="text-slate-600">Agent</span><div className="font-mono text-slate-400 mt-1 truncate">{event.source_agent}</div></div>
+            </div>
+          </div>
+        </>
+      )}
     </Panel>
   );
 }

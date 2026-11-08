@@ -1,304 +1,186 @@
-/**
- * App — Kavach demo shell.
- *
- * ONE persistent application shell:
- *
- *   <Sidebar />            always mounted (landing, running, completed, attack)
- *   <TopBar />             always mounted
- *   main content           landing OR dashboard
- *
- * The landing screen and the runtime dashboard are two states of the SAME
- * application.  The shell is never unmounted because a workflow exists.
- *
- * Data rules enforced here:
- *   - The landing screen renders only the task input and Run Workflow.  The
- *     task starts EMPTY and nothing runs until the button is pressed.
- *   - Every value on the dashboard is a projection of the CURRENT workflow
- *     session (events scoped to this workflow_id + live Shield agent states).
- *     The permanent audit log is never read for display.
- *   - Exactly one selected request id.  Activity rows set it; the pipeline and
- *     Agent Control both derive from it.  Nothing picks its own event.
- *   - All API responses are normalised explicitly, so an unexpected shape can
- *     never throw during render.
- */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TopBar } from "./components/TopBar.jsx";
-import { Sidebar } from "./components/Sidebar.jsx";
-import { LandingPanel } from "./components/LandingPanel.jsx";
-import { SecurityTestPanel } from "./components/SecurityTestPanel.jsx";
-import { DashboardPage } from "./pages/DashboardPage.jsx";
-import { ScannerPage } from "./pages/ScannerPage.jsx";
-import { useKavach } from "./hooks/useKavach.js";
-import { api } from "./api.js";
-import { asArrayOfOne, normalizeAgents, normalizeEvents } from "./lib/shape.js";
+import { useEffect, useRef, useState } from "react";
+import { Activity, AlertOctagon, ArrowRight, Bell, Bot, Boxes, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Code2, Command, Database, Download, FileText, FlaskConical, Home, Layers3, Lock, Menu, Moon, Network, Play, ScanLine, Shield, ShieldAlert, ShieldCheck, Sparkles, Sun, UploadCloud, UserRound, Workflow, X, Zap } from "lucide-react";
 
-// Merge the current workflow's events with the attack-session events, newest
-// first, de-duplicated by request_id.
-//
-// The workflow contributes an ARRAY of events; the attack response contributes
-// two SINGLE events.  Both shapes are normalised before iteration, so a single
-// event is never treated as a list.
-export function mergeEvents(...sources) {
-  const byRequest = new Map();
-  for (const source of sources) {
-    for (const event of asArrayOfOne(source)) {
-      if (event?.request_id && !byRequest.has(event.request_id)) {
-        byRequest.set(event.request_id, event);
-      }
-    }
-  }
-  return [...byRequest.values()].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-  );
-}
-
-// Human-readable message for a classified API error.
-function messageFor(err) {
-  switch (err?.kind) {
-    case "offline":      return "Backend unreachable — is the local API running?";
-    case "unauthorized": return "Unauthorized — check the API key.";
-    case "rate_limited": return "Rate limited — try again in a moment.";
-    case "server":       return "Backend error while starting the workflow.";
-    default:             return err?.message || "Request failed.";
-  }
-}
-
-export default function App() {
-  const { snapshot, error: pollError, track, untrack, refresh } = useKavach();
-
-  const [page, setPage] = useState("dashboard");
-  const [collapsed, setCollapsed] = useState(true);
-
-  // "landing" | "dashboard" — in memory only, so a reload always starts clean.
-  const [view, setView] = useState("landing");
-
-  // The task input starts EMPTY.  Nothing is prefilled.
-  const [task, setTask] = useState("");
-  const [starting, setStarting] = useState(false);
-  const [runError, setRunError] = useState("");
-
-  // Exactly one selected request id, plus whether the operator chose it.
-  const [selectedRequestId, setSelectedRequestId] = useState(null);
-  const [userSelected, setUserSelected] = useState(false);
-
-  // Agent Control follows the selected event's source agent.  A Fleet/Agent
-  // Control click overrides that until the next event is selected — there is no
-  // hardcoded default agent.
-  const [manualAgentId, setManualAgentId] = useState(null);
-
-  const [attack, setAttack] = useState(null);
-  const [attacking, setAttacking] = useState(false);
-  const [attackError, setAttackError] = useState("");
-  const [resetting, setResetting] = useState(false);
-
-  const unmounted = useRef(false);
-  useEffect(() => {
-    unmounted.current = false;
-    return () => { unmounted.current = true; };
-  }, []);
-
-  const clearSelection = useCallback(() => {
-    setSelectedRequestId(null);
-    setUserSelected(false);
-    setManualAgentId(null);
-  }, []);
-
-  // A fresh browser session starts a fresh demo session: all five agents
-  // ACTIVE, no previous telemetry, workflow, quarantine or incidents.  This
-  // issues no authorization request, so it emits no security telemetry.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await api.resetDemoSession();
-      } catch {
-        // Backend unreachable — the landing screen still renders.
-      }
-      if (!cancelled) clearSelection();
-    })();
-    return () => { cancelled = true; };
-  }, [clearSelection]);
-
-  // ---- Derived session view ------------------------------------------------
-
-  const status = snapshot?.status ?? null;
-
-  // Only current-session events.  The workflow's events arrive already scoped
-  // to its workflow_id; the attack decisions come with the attack response.
-  const events = useMemo(
-    () =>
-      mergeEvents(
-        normalizeEvents(snapshot),
-        attack?.attack?.event,
-        attack?.post_quarantine?.event,
-      ),
-    [snapshot, attack],
-  );
-
-  // Live Shield agent states.  After the attack, the response carries the
-  // post-quarantine snapshot (the workflow is already terminal by then).
-  const agents = useMemo(() => {
-    const fromAttack = normalizeAgents(attack);
-    return fromAttack.length > 0 ? fromAttack : normalizeAgents(snapshot);
-  }, [attack, snapshot]);
-
-  const newestRequestId = events[0]?.request_id ?? null;
-
-  // Auto-follow the newest decision until the operator picks a row.  Once they
-  // click, the selection is theirs and never moves on its own.
-  useEffect(() => {
-    if (view !== "dashboard") return;
-    if (userSelected) return;
-    if (!newestRequestId) return;
-    if (selectedRequestId !== newestRequestId) setSelectedRequestId(newestRequestId);
-  }, [view, userSelected, newestRequestId, selectedRequestId]);
-
-  // ---- Actions -------------------------------------------------------------
-
-  const runWorkflow = useCallback(async () => {
-    const trimmed = task.trim();
-    if (!trimmed) {
-      setRunError("Enter a task to run.");
-      return;
-    }
-
-    setStarting(true);
-    setRunError("");
-    setAttack(null);
-    setAttackError("");
-    clearSelection();
-
-    // Transition to the dashboard immediately — the workflow runs in the
-    // backend and streams its real decisions in as they are made.
-    setView("dashboard");
-
-    try {
-      // 1. Clean session: all five agents ACTIVE, telemetry and workflows clear.
-      await api.resetDemoSession();
-      // 2. Create the workflow (does not execute it).
-      const created = await api.createWorkflow(trimmed);
-      // 3. Track it — the single polled source of truth.
-      track(created.workflow_id);
-      // 4. Start it. Returns immediately with RUNNING; the phases continue in
-      //    the backend on a worker thread.
-      await api.startWorkflow(created.workflow_id);
-    } catch (err) {
-      if (unmounted.current) return;
-      setRunError(messageFor(err));
-      setView("landing");
-    } finally {
-      if (!unmounted.current) setStarting(false);
-    }
-  }, [task, track, clearSelection]);
-
-  const simulateAttack = useCallback(async () => {
-    setAttacking(true);
-    setAttackError("");
-    try {
-      const result = await api.simulateAttack();
-      if (unmounted.current) return;
-      setAttack(result);
-      // Focus the pipeline on the attack request itself, and keep it there.
-      // Agent Control then follows that request's source agent (research-01).
-      setSelectedRequestId(result?.attack?.request_id ?? null);
-      setUserSelected(true);
-      setManualAgentId(null);
-    } catch (err) {
-      if (!unmounted.current) setAttackError(messageFor(err));
-    } finally {
-      if (!unmounted.current) setAttacking(false);
-    }
-  }, []);
-
-  const runAgain = useCallback(async () => {
-    setResetting(true);
-    try {
-      await api.resetDemoSession();
-    } catch {
-      // Best effort — local state is cleared regardless.
-    }
-    if (unmounted.current) return;
-    untrack();
-    setAttack(null);
-    setAttackError("");
-    setRunError("");
-    setTask("");
-    clearSelection();
-    setPage("dashboard");
-    setView("landing");
-    if (!unmounted.current) setResetting(false);
-  }, [untrack, clearSelection]);
-
-  const handleEventSelect = useCallback((requestId) => {
-    setSelectedRequestId(requestId);
-    setUserSelected(true);
-    // Agent Control follows the selected event from here on.
-    setManualAgentId(null);
-  }, []);
-
-  // ---- Render --------------------------------------------------------------
-  // ONE shell: the sidebar and top bar are always present.
-
-  return (
-    <div className="flex min-h-screen w-full">
-      <Sidebar
-        activePage={page}
-        onNavigate={setPage}
-        collapsed={collapsed}
-        onToggle={() => setCollapsed((v) => !v)}
-      />
-
-      <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
-        <TopBar
-          errorKind={pollError?.kind ?? null}
-          connected={!pollError}
-          loading={!snapshot && starting}
-          onRefresh={view === "dashboard" ? refresh : undefined}
-        />
-
-        <main className="flex-1 px-4 py-4 overflow-y-auto">
-          <div className="mx-auto max-w-[1400px]">
-            {page === "scanner" ? (
-              <ScannerPage />
-            ) : view === "landing" ? (
-              <LandingPanel
-                task={task}
-                onTaskChange={setTask}
-                onRun={runWorkflow}
-                busy={starting}
-                error={runError}
-              />
-            ) : (
-              <DashboardPage
-                snapshot={snapshot}
-                events={events}
-                agents={agents}
-                starting={starting}
-                selectedRequestId={selectedRequestId}
-                onEventSelect={handleEventSelect}
-                manualAgentId={manualAgentId}
-                onAgentSelect={setManualAgentId}
-                onMutate={refresh}
-              >
-                <SecurityTestPanel
-                  status={status}
-                  attack={attack}
-                  onAttack={simulateAttack}
-                  attacking={attacking}
-                  error={attackError}
-                  onRunAgain={runAgain}
-                  resetting={resetting}
-                />
-              </DashboardPage>
-            )}
-          </div>
-        </main>
-
-        <footer className="text-center text-[11px] text-ink3 py-2 font-mono border-t border-line" style={{ background: "#080c15" }}>
-          kavach · zero-trust runtime security ·{" "}
-          {pollError ? "backend error" : "backend connected"}
-        </footer>
+const NAV = [
+  ["home","Home",Home,"WORKSPACE"],["simulator","Simulator",FlaskConical,"WORKSPACE"],["scenarios","Scenarios",ShieldCheck,"WORKSPACE"],
+  ["shield","Shield",Shield,"SECURITY"],["scanner","Artifact Scanner",ScanLine,"SECURITY"],
+  ["agents","Agents",Bot,"MANAGEMENT"],["policies","Policies (Cedar)",Layers3,"MANAGEMENT"],["audit","Audit & Traces",Activity,"MANAGEMENT"]
+];
+const SCENARIOS = [
+  {id:"data",name:"Unauthorized Data Access",desc:"Test zero-trust enforcement when an agent requests sensitive data outside its granted scope.",level:"Beginner",tag:"ACCESS CONTROL",icon:Database},
+  {id:"code",name:"Malicious Code Execution",desc:"Simulate an unsafe artifact attempting to execute commands inside a protected workflow.",level:"Intermediate",tag:"ARTIFACT THREAT",icon:Code2},
+  {id:"agent",name:"Compromised Agent",desc:"Detect suspicious behaviour, revoke capabilities, and contain an untrusted identity.",level:"Advanced",tag:"IDENTITY THREAT",icon:Bot},
+  {id:"supply",name:"Supply Chain Risk",desc:"Inspect a package with vulnerable dependencies and suspicious provenance.",level:"Advanced",tag:"DEPENDENCY RISK",icon:Boxes}
+];
+const START_AGENTS = [
+  {id:"agt-001",name:"researcher-01",role:"Research Agent",state:"ACTIVE",trust:"VERIFIED",risk:"LOW",caps:["read:public","search:web"],last:"Just now"},
+  {id:"agt-002",name:"executor-02",role:"Task Executor",state:"ACTIVE",trust:"VERIFIED",risk:"MEDIUM",caps:["read:data","write:reports"],last:"2 min ago"},
+  {id:"agt-003",name:"browser-03",role:"Browser Agent",state:"ACTIVE",trust:"VERIFIED",risk:"LOW",caps:["navigate:web","read:public"],last:"4 min ago"},
+  {id:"agt-004",name:"analyst-04",role:"Data Analyst",state:"QUARANTINED",trust:"RESTRICTED",risk:"HIGH",caps:["read:data"],last:"12 min ago"},
+  {id:"agt-005",name:"planner-05",role:"Planning Agent",state:"ACTIVE",trust:"VERIFIED",risk:"LOW",caps:["plan:workflow","read:public"],last:"18 min ago"}
+];
+const START_EVENTS = [];
+const START_RUNS = [];
+const POLICIES = [
+  ["zero-trust-default-deny","Deny protected actions unless an explicit capability and policy grant exists.","Global","DENY BY DEFAULT"],
+  ["finance-data-restriction","Restrict finance datasets to approved analyst identities and read-only scopes.","Data access","RESTRICT"],
+  ["no-untrusted-execution","Prevent execution of artifacts without verified provenance and scan clearance.","Execution","DENY"],
+  ["delegation-boundary","Limit delegation depth and ensure delegated capabilities never exceed the parent grant.","Identity","CONSTRAIN"],
+  ["public-web-access","Allow verified agents to navigate public web destinations.","Network","ALLOW"]
+];
+const cx=(...x)=>x.filter(Boolean).join(" ");
+function Badge({children,tone="muted",dot=false}){return <span className={"badge badge-"+tone}>{dot&&<i/>}{children}</span>}
+function Button({children,onClick,kind="primary",icon:Icon,disabled=false}){return <button className={"btn btn-"+kind} onClick={onClick} disabled={disabled}>{Icon&&<Icon size={15}/>}{children}</button>}
+function Panel({title,sub,action,children,className=""}){return <section className={"panel "+className}><header className="panel-head"><div>{title&&<h3>{title}</h3>}{sub&&<p>{sub}</p>}</div>{action}</header>{children}</section>}
+function Heading({eyebrow,title,desc,action}){return <div className="page-heading"><div><div className="eyebrow"><i/>{eyebrow}</div><h1>{title}</h1><p>{desc}</p></div>{action}</div>}
+function Empty({icon:Icon=Activity,title,desc}){return <div className="empty"><span><Icon size={22}/></span><b>{title}</b><p>{desc}</p></div>}
+function EventTable({events,onSelect}){if(!events.length)return <Empty icon={Activity} title="No authorization events yet" desc="Run a local scenario to generate inspectable demo records. Production telemetry is not connected."/>;return <div className="table-scroll"><table><thead><tr><th>REQUEST</th><th>AGENT / ACTION</th><th>RESOURCE</th><th>DECISION</th><th>RISK</th><th/></tr></thead><tbody>{events.map(e=><tr key={e.id} onClick={()=>onSelect(e)}><td className="mono">{e.id}<small>{e.time}</small></td><td><b>{e.agent}</b><small>{e.action}</small></td><td className="mono">{e.resource}</td><td><Badge tone={e.decision==="ALLOW"?"success":"danger"} dot>{e.decision}</Badge></td><td><Badge tone={e.risk==="LOW"?"success":"warning"}>{e.risk}</Badge></td><td><ChevronRight size={15}/></td></tr>)}</tbody></table></div>}
+function TraceModal({event,onClose}){if(!event)return null;return <div className="modal-shade" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal"><header><div><h2>Authorization trace</h2><p>SIMULATOR ENVIRONMENT · DEMO DATA</p></div><button className="icon-btn" onClick={onClose}><X size={18}/></button></header><div className="trace-badges"><Badge tone={event.decision==="ALLOW"?"success":"danger"}>{event.decision}</Badge><Badge tone="warning">{event.risk} RISK</Badge><code>{event.id}</code></div>{[["Agent",event.agent],["Action",event.action],["Resource",event.resource],["Policy evaluated",event.policy],["Enforcement gate",event.gate],["Timestamp",event.time],["Decision reason",event.reason]].map(([k,v])=><div className="detail-line" key={k}><span>{k}</span><b>{v}</b></div>)}<div className="notice"><ShieldCheck size={17}/><span><b>Simulated enforcement result</b><small>This trace is generated locally. It is not a production authorization record.</small></span></div></div></div>}
+function HomePage({runs,navigate,choose}) {
+  const modules = [
+    [ShieldCheck, "Zero-trust policy", "Evaluate every protected action"],
+    [Network, "Agent identity", "Inspect provenance and delegation"],
+    [ScanLine, "Artifact inspection", "Review inputs before execution"],
+    [Activity, "Trace & audit", "Follow each simulated decision"],
+  ];
+  return <>
+    <section className="hero-console">
+      <div className="hero-copy">
+        <div className="eyebrow"><i/> ZERO-TRUST RUNTIME SECURITY</div>
+        <h1>KAVACH<br/><em>Runtime Security Simulator</em></h1>
+        <p>Explore how autonomous agents behave under pressure. Run controlled attack scenarios, inspect policy decisions, and understand where zero-trust enforcement steps in.</p>
+        <div className="hero-actions">
+          <Button onClick={()=>navigate("simulator")} icon={Play}>Start a simulation</Button>
+          <Button kind="outline" onClick={()=>navigate("scenarios")}>Explore scenarios <ArrowRight size={14}/></Button>
+        </div>
+        <div className="hero-capabilities">
+          <span><Zap size={16}/> Simulate threats</span><span><Bot size={16}/> Test agents</span><span><Layers3 size={16}/> Evaluate policies</span><span><Activity size={16}/> Inspect traces</span>
+        </div>
       </div>
-    </div>
-  );
+      <div className="hero-visual hero-visual-premium" aria-label="Glowing three-dimensional zero-trust shield with holographic security field">
+        <div className="hero-visual-aura"/>
+        <svg className="security-visual-svg" viewBox="0 0 620 440" role="img" aria-label="Luminous coral and electric blue shield floating above a holographic platform">
+          <defs>
+            <radialGradient id="globeFill" cx="50%" cy="42%" r="58%"><stop offset="0" stopColor="#286db8" stopOpacity=".48"/><stop offset=".68" stopColor="#0b3265" stopOpacity=".2"/><stop offset="1" stopColor="#06152b" stopOpacity="0"/></radialGradient>
+            <linearGradient id="shieldFace" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffb6a5" stopOpacity=".88"/><stop offset=".25" stopColor="#ff6d69" stopOpacity=".48"/><stop offset=".53" stopColor="#6c68ff" stopOpacity=".34"/><stop offset=".8" stopColor="#1b9dff" stopOpacity=".54"/><stop offset="1" stopColor="#a8eaff" stopOpacity=".78"/></linearGradient>
+            <linearGradient id="shieldEdge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff0e9"/><stop offset=".32" stopColor="#ff776d"/><stop offset=".7" stopColor="#7e83ff"/><stop offset="1" stopColor="#69d8ff"/></linearGradient>
+            <linearGradient id="checkStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff"/><stop offset=".55" stopColor="#ffddd6"/><stop offset="1" stopColor="#8beaff"/></linearGradient>
+            <linearGradient id="platformLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#ff6b70" stopOpacity="0"/><stop offset=".22" stopColor="#ff7a78"/><stop offset=".52" stopColor="#fff0ed"/><stop offset=".78" stopColor="#42caff"/><stop offset="1" stopColor="#42caff" stopOpacity="0"/></linearGradient>
+            <radialGradient id="platformGlow"><stop offset="0" stopColor="#ff796e" stopOpacity=".48"/><stop offset=".48" stopColor="#388fff" stopOpacity=".2"/><stop offset="1" stopColor="#168cff" stopOpacity="0"/></radialGradient>
+            <filter id="shieldGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="9" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="softGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="15"/></filter>
+            <pattern id="globeDots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" fill="#70caff" opacity=".78"/></pattern>
+          </defs>
+          <circle cx="310" cy="174" r="164" fill="url(#globeFill)"/>
+          <circle cx="310" cy="174" r="155" fill="url(#globeDots)" opacity=".52" mask="url(#globeMask)"/>
+          <defs><mask id="globeMask"><circle cx="310" cy="174" r="154" fill="white"/><ellipse cx="310" cy="174" rx="155" ry="54" fill="black" opacity=".15"/></mask></defs>
+          <g fill="none" stroke="#3c9fff" opacity=".28">
+            <ellipse cx="310" cy="174" rx="150" ry="154"/><ellipse cx="310" cy="174" rx="105" ry="154"/><ellipse cx="310" cy="174" rx="54" ry="154"/>
+            <ellipse cx="310" cy="174" rx="154" ry="48"/><ellipse cx="310" cy="174" rx="154" ry="98"/>
+            <path d="M164 120 Q310 5 456 120M164 229 Q310 345 456 229"/>
+          </g>
+          <path d="M112 220 C165 70 438 54 520 172" fill="none" stroke="#35aaff" strokeWidth="1.5" opacity=".42"/>
+          <path d="M98 190 C176 306 430 320 536 160" fill="none" stroke="#ff796e" strokeWidth="1.8" opacity=".78"/>
+          <path d="M124 250 C220 350 438 310 508 216" fill="none" stroke="#57caff" strokeWidth="1.3" opacity=".62"/>
+          <g filter="url(#softGlow)" opacity=".7"><ellipse cx="310" cy="348" rx="160" ry="42" fill="url(#platformGlow)"/></g>
+          <g fill="none" strokeLinecap="round">
+            <ellipse cx="310" cy="344" rx="184" ry="42" stroke="#298fff" strokeWidth="2" opacity=".8"/>
+            <ellipse cx="310" cy="341" rx="155" ry="31" stroke="#60caff" strokeWidth="2.5" opacity=".8"/>
+            <ellipse cx="310" cy="339" rx="124" ry="23" stroke="#ff7d75" strokeWidth="2.2" opacity=".92"/>
+            <ellipse cx="310" cy="346" rx="205" ry="49" stroke="url(#platformLine)" strokeWidth="2.2"/>
+            <path d="M126 343 Q310 405 494 343" stroke="#2e91ff" strokeWidth="1.2" opacity=".7"/>
+            <path d="M180 331 Q310 369 440 331" stroke="#ffe3de" strokeWidth="1.5" opacity=".7"/>
+          </g>
+          <path d="M310 95 L383 136 L376 246 Q365 294 310 326 Q255 294 244 246 L237 136Z" fill="#ff786d" opacity=".17" filter="url(#softGlow)"/>
+          <g filter="url(#shieldGlow)">
+            <path d="M310 73 L391 119 L383 229 Q371 286 310 317 Q249 286 237 229 L229 119Z" fill="url(#shieldFace)" stroke="url(#shieldEdge)" strokeWidth="5" strokeLinejoin="round"/>
+            <path d="M310 91 L374 128 L367 226 Q357 270 310 294 Q263 270 253 226 L246 128Z" fill="#071a36" fillOpacity=".7" stroke="#ffd2c8" strokeWidth="2.2" strokeLinejoin="round"/>
+            <path d="M310 105 L359 134 L354 221 Q346 254 310 274 Q274 254 266 221 L261 134Z" fill="url(#shieldFace)" fillOpacity=".32" stroke="#83d9ff" strokeOpacity=".86" strokeWidth="1.5"/>
+            <path d="M278 192 L300 215 L346 166" fill="none" stroke="url(#checkStroke)" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round"/>
+          </g>
+          <path d="M310 73 L391 119 L383 229" fill="none" stroke="#fff2ed" strokeWidth="2" opacity=".9"/>
+          <path d="M229 119 L237 229 Q249 286 310 317" fill="none" stroke="#ff978d" strokeWidth="2" opacity=".75"/>
+          <path d="M310 73 L310 42" stroke="#ff9c91" strokeWidth="1.5" opacity=".65"/>
+          <g fill="#ff8b7e"><circle cx="115" cy="218" r="4"/><circle cx="493" cy="161" r="3.5"/></g>
+          <g fill="#64cfff"><circle cx="475" cy="248" r="3.5"/><circle cx="171" cy="104" r="3"/></g>
+          <g fill="none" stroke="#ff8278" opacity=".45"><path d="M310 318V335"/><path d="M278 309L257 337"/><path d="M342 309L363 337"/></g>
+        </svg>
+        <div className="hero-node hero-node-agent"><Bot size={16}/><span><b>Agent identity</b><small>Verified principal</small></span></div>
+        <div className="hero-node hero-node-policy"><Layers3 size={16}/><span><b>Policy gate</b><small>Cedar evaluation</small></span></div>
+        <div className="hero-node hero-node-threat"><ShieldAlert size={16}/><span><b>Threat signal</b><small>Scenario input</small></span></div>
+        <div className="hero-connector connector-agent"/><div className="hero-connector connector-policy"/><div className="hero-connector connector-threat"/>
+      </div>
+    </section>
+    <section className="home-workspace">
+      <Panel title="Start a security simulation" sub="Choose a pre-built scenario or configure a protected workflow." className="launch-panel">
+        <div className="launch-content">
+          <div className="launch-steps">{[["01","Select scenario","Choose an attack path"],["02","Configure agents","Set identity and capabilities"],["03","Evaluate policies","Inspect the authorization gates"],["04","Run & analyze","Review the execution trace"]].map(([n,title,desc],i)=><div className="launch-step" key={n}><span className={i===0?"step-number active":"step-number"}>{n}</span><span><b>{title}</b><small>{desc}</small></span>{i!==3&&<i className="step-connector"/>}</div>)}</div>
+          <div className="launch-actions"><div><small>READY TO BEGIN</small><b>Sandbox environment · Local demo data</b></div><Button onClick={()=>navigate("simulator")} icon={Play}>Open simulation lab</Button></div>
+        </div>
+      </Panel>
+      <div className="home-side-stack">
+        <Panel title="Simulator modules" sub="Capabilities represented in this local demo">
+          <div className="module-list">{modules.map(([Icon,title,desc])=><div key={title}><span><Icon size={16}/></span><div><b>{title}</b><small>{desc}</small></div><Badge tone="info">Demo</Badge></div>)}</div>
+          <div className="demo-caption"><Sparkles size={13}/> Illustrative environment · No live backend connection</div>
+        </Panel>
+        <Panel title="Recent simulations" sub="Runs created during this browser session" action={<button className="text-link" onClick={()=>navigate("audit")}>Open audit <ArrowRight size={13}/></button>}>
+          {runs.length?<div className="recent-list">{runs.slice(0,3).map(r=><div key={r.id}><span className="round-check"><Check size={12}/></span><span><b>{r.name}</b><small>{r.time}</small></span><Badge tone={r.result==="BLOCKED"?"danger":"success"}>{r.result}</Badge></div>)}</div>:<div className="recent-empty"><Clock3 size={20}/><b>No simulation runs yet</b><span>Completed local runs will appear here. Nothing is pre-populated.</span></div>}
+        </Panel>
+      </div>
+    </section>
+    <section className="scenario-section">
+      <div className="section-heading"><div><div className="eyebrow"><i/> SCENARIO LIBRARY</div><h2>Explore security scenarios</h2><p>Start with a focused exercise, then inspect the decisions it produces.</p></div><button className="text-link" onClick={()=>navigate("scenarios")}>View all scenarios <ArrowRight size={14}/></button></div>
+      <div className="quick-grid home-scenario-grid">{SCENARIOS.map((s,i)=><button key={s.id} className={"quick-card "+(i===0?"chosen":"")} onClick={()=>choose(s)}><s.icon size={25}/><small className="scenario-tag">{s.tag}</small><b>{s.name}</b><p>{s.desc}</p><span>{s.level}</span></button>)}</div>
+    </section>
+  </>;
+}
+function SimulatorPage({runs,run}){const [objective,setObjective]=useState("Research public information and prepare a summary report.");const [scenario,setScenario]=useState("data");const [agent,setAgent]=useState("researcher-01");const [steps,setSteps]=useState([]);const [busy,setBusy]=useState(false);const [decision,setDecision]=useState("");const start=()=>{setBusy(true);setSteps([]);setDecision("");const labels=["Workflow initialized","Agent identity verified","Artifact and input context inspected","Cedar policy evaluated","Decision recorded"];labels.forEach((label,i)=>window.setTimeout(()=>{setSteps(v=>[...v,label]);if(i===4){setBusy(false);const d=scenario==="data"||scenario==="code"?"DENY":"ALLOW";setDecision(d);run(SCENARIOS.find(s=>s.id===scenario),d);}},480*(i+1)));};return <><Heading eyebrow="SIMULATOR / WORKFLOW LAB" title="Run a simulation" desc="Compose a protected workflow and observe each security gate in real time." action={<Badge tone="info" dot>Sandbox mode</Badge>}/><div className="two-col"><Panel title="Workflow configuration" sub="All actions run in the local simulator"><div className="form"><label>WORKFLOW OBJECTIVE<textarea rows="4" value={objective} onChange={e=>setObjective(e.target.value)}/></label><label>SCENARIO<select value={scenario} onChange={e=>setScenario(e.target.value)}>{SCENARIOS.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label>EXECUTING AGENT<select value={agent} onChange={e=>setAgent(e.target.value)}>{START_AGENTS.map(a=><option key={a.id}>{a.name}</option>)}</select></label><div className="notice"><ShieldCheck size={17}/><span><b>Zero-trust enforcement enabled</b><small>Every demo action is evaluated against the local policy set.</small></span></div><Button onClick={start} disabled={busy||!objective.trim()} icon={Play}>{busy?"Simulation running…":"Run protected workflow"}</Button></div></Panel><div className="stack"><Panel title="Live execution trace" sub="Chronological workflow and policy events" action={<Badge tone={busy?"warning":"muted"} dot>{busy?"Running":"Ready"}</Badge>}>{steps.length?<div className="trace-list">{steps.map((s,i)=><div key={i}><CheckCircle2 size={17}/><span><b>{s}</b><small>Stage {i+1} · completed</small></span><Badge tone="success">Passed</Badge></div>)}</div>:<Empty icon={Workflow} title="Waiting for a workflow" desc="Start a simulation to watch identity, artifact, policy, and authorization checks."/>}{decision&&<div className="decision"><b>Final simulated decision</b><Badge tone={decision==="DENY"?"danger":"success"}>{decision}</Badge></div>}</Panel><Panel title="Previous runs" sub="Recent local simulator sessions"><div className="recent-list">{runs.map(r=><div key={r.id}><span className="round-check"><Check size={12}/></span><span><b>{r.name}</b><small>{r.time}</small></span><Badge tone={r.result==="BLOCKED"?"danger":"success"}>{r.result}</Badge></div>)}</div></Panel></div></div></>}
+function ScenariosPage({choose}){return <><Heading eyebrow="SCENARIO LIBRARY" title="Explore attack scenarios" desc="Hands-on sandbox exercises that demonstrate how runtime controls evaluate agent actions and respond to threats." action={<Badge tone="info">Sandbox library</Badge>}/><div className="scenario-library">{SCENARIOS.map(s=><article key={s.id}><span className="scenario-icon"><s.icon size={25}/></span><small>{s.tag}</small><h3>{s.name}</h3><p>{s.desc}</p><div className="scenario-meta"><Badge tone={s.level==="Beginner"?"success":s.level==="Intermediate"?"warning":"danger"}>{s.level}</Badge><span><Clock3 size={13}/> {s.id==="data"?"2–3 min":"3–5 min"}</span></div><Button kind="outline" onClick={()=>choose(s)}>Configure scenario <ArrowRight size={14}/></Button></article>)}</div><Panel title="How scenarios work" sub="A repeatable and inspectable learning loop"><div className="how-grid">{[["01","Configure","Choose an agent, objective, and attack path."],["02","Execute","Run the workflow inside the simulator sandbox."],["03","Enforce","Identity, capability, artifact, and Cedar checks evaluate each action."],["04","Learn","Inspect traces, decisions, and containment outcomes."]].map(x=><div key={x[0]}><b>{x[0]}</b><strong>{x[1]}</strong><p>{x[2]}</p></div>)}</div></Panel></>}
+function ShieldPage({agents,events,inspect}) {
+  const [tab,setTab]=useState("posture");
+  return <>
+    <Heading eyebrow="RUNTIME PROTECTION / OPERATOR CONSOLE" title="Shield overview" desc="Inspect runtime protection concepts, review local simulator decisions, and explore agent containment controls." action={<Badge tone="info" dot>Simulator · Demo data</Badge>}/>
+    <div className="tabs"><button className={tab==="posture"?"active":""} onClick={()=>setTab("posture")}>Protection posture</button><button className={tab==="events"?"active":""} onClick={()=>setTab("events")}>Authorization events</button></div>
+    {tab==="posture"?<div className="two-col">
+      <Panel title="Protection layers" sub="Conceptual controls represented in the simulator"><div className="posture-list">{[[ShieldCheck,"Zero-trust authorization","Protected actions require explicit permission"],[Network,"Identity & provenance","Validate principal identity and delegation lineage"],[Lock,"Capability enforcement","Constrain actions to least-privilege grants"],[Command,"Cedar policy","Evaluate declarative authorization policies"],[Activity,"Audit telemetry","Record decisions with request-level context"]].map(([I,t,d])=><div key={t}><span><I size={17}/></span><b>{t}<small>{d}</small></b><Badge tone="info">Demo</Badge></div>)}</div></Panel>
+      <Panel title="Sample agent identities" sub="Illustrative fixtures · not connected to a live registry"><div className="agent-list">{agents.map(a=><div key={a.id}><span className="agent-avatar"><Bot size={16}/></span><span><b>{a.name}</b><small>{a.role} · sample identity</small></span><Badge tone={a.state==="ACTIVE"?"success":"danger"}>{a.state}</Badge></div>)}</div></Panel>
+    </div>:<Panel title="Authorization decisions" sub="Local simulator records only · no production telemetry"><EventTable events={events} onSelect={inspect}/></Panel>}
+  </>;
+}
+function AgentsPage({agents,toggle}){return <><Heading eyebrow="IDENTITY REGISTRY" title="Agent fleet" desc="Explore sample agent identities, trust labels, granted capabilities, and local containment controls." action={<Badge tone="info">Sample identities</Badge>}/><div className="agent-grid">{agents.map(a=><article key={a.id}><div className="agent-card-top"><span className="agent-avatar"><Bot size={20}/></span><Badge tone={a.state==="ACTIVE"?"success":"danger"} dot>{a.state}</Badge></div><h3>{a.name}</h3><p>{a.role} · {a.id}</p><div className="agent-pair"><span>TRUST <b>{a.trust}</b></span><span>RISK <b>{a.risk}</b></span></div><small className="caps-label">GRANTED CAPABILITIES</small><div className="caps">{a.caps.map(c=><code key={c}>{c}</code>)}</div><div className="agent-foot"><small><Clock3 size={12}/> {a.last}</small><Button kind={a.state==="ACTIVE"?"danger":"outline"} onClick={()=>toggle(a.id)}>{a.state==="ACTIVE"?"Quarantine":"Restore"}</Button></div></article>)}</div></>}
+function PoliciesPage(){const [selected,setSelected]=useState(0);const [enabled,setEnabled]=useState(POLICIES.map(()=>true));return <><Heading eyebrow="POLICY MANAGEMENT" title="Policies & guardrails" desc="Understand the Cedar policy set used by the simulator to evaluate protected agent actions." action={<Badge tone="success" dot>Policy engine simulated</Badge>}/><div className="two-col"><Panel title="Policy library" sub="Demo policies · toggle locally"><div className="policy-list">{POLICIES.map((p,i)=><button key={p[0]} className={selected===i?"selected":""} onClick={()=>setSelected(i)}><Layers3 size={17}/><span><b>{p[0]}</b><small>{p[2]} · {p[3]}</small></span><Badge tone={enabled[i]?"success":"muted"}>{enabled[i]?"ENABLED":"DISABLED"}</Badge></button>)}</div></Panel><Panel title="Policy details" sub={POLICIES[selected][0]}><div className="policy-detail"><Badge tone="info">{POLICIES[selected][3]}</Badge><h2>{POLICIES[selected][0]}</h2><p>{POLICIES[selected][1]}</p><div className="detail-line"><span>Scope</span><b>{POLICIES[selected][2]}</b></div><div className="detail-line"><span>Evaluation mode</span><b>Explicit deny / default deny</b></div><div className="detail-line"><span>Environment</span><b>Simulator only</b></div><div className="notice"><ShieldCheck size={17}/><span><b>Policy changes are local</b><small>This demo does not publish changes to a live Cedar control plane.</small></span></div><Button kind="outline" onClick={()=>setEnabled(v=>v.map((x,i)=>i===selected?!x:x))}>{enabled[selected]?"Disable in demo":"Enable in demo"}</Button></div></Panel></div></>}
+function AuditPage({events,runs,inspect}) {
+  const [filter,setFilter]=useState("ALL");
+  const filtered=events.filter(e=>filter==="ALL"||e.decision===filter);
+  return <>
+    <Heading eyebrow="OBSERVABILITY" title="Audit & traces" desc="Review decisions created by your local simulator sessions. Production audit records will appear only after a verified backend connection." action={<div className="heading-actions"><Badge tone="info">Local demo records</Badge><Button kind="outline" icon={Download} onClick={()=>{const u=URL.createObjectURL(new Blob([JSON.stringify({events,runs,source:"local-simulator-demo"},null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=u;a.download="kavach-demo-audit.json";a.click();URL.revokeObjectURL(u);}}>Export JSON</Button></div>}/>
+    <Panel title="Authorization event log" sub="Select a record to inspect its simulated trace" action={<div className="filters">{["ALL","ALLOW","DENY"].map(f=><button className={filter===f?"active":""} onClick={()=>setFilter(f)} key={f}>{f}</button>)}</div>}>{filtered.length?<EventTable events={filtered} onSelect={inspect}/>:<Empty icon={Activity} title="No audit events yet" desc="Run a scenario or protected workflow. Its local demo events will appear here."/>}</Panel>
+    <Panel title="Simulation history" sub="Runs created during this browser session">{runs.length?<div className="recent-list">{runs.map(r=><div key={r.id}><span className="round-check"><Check size={12}/></span><span><b>{r.name}</b><small>{r.id} · {r.time} · {r.steps} stages</small></span><Badge tone={r.result==="BLOCKED"?"danger":"success"}>{r.result}</Badge></div>)}</div>:<Empty icon={Workflow} title="No completed simulations" desc="Your completed local runs will be listed here. No sample history is preloaded."/>}</Panel>
+  </>;
+}
+function ScannerPage({addEvent}){const ref=useRef(null);const [file,setFile]=useState(null);const [busy,setBusy]=useState(false);const [report,setReport]=useState(null);const scan=()=>{if(!file)return;setBusy(true);setReport(null);window.setTimeout(()=>{const suspicious=/mal|unknown|test|exe|sh/i.test(file.name);const checks=[["File metadata extracted","PASSED"],["SHA-256 fingerprint generated","PASSED"],["Static pattern analysis",suspicious?"FLAGGED":"PASSED"],["Dependency and provenance checks",suspicious?"REVIEW":"PASSED"],["Policy risk assessment",suspicious?"BLOCKED":"PASSED"]];setReport({checks,verdict:suspicious?"BLOCKED":"CLEARED",hash:"a9f3c8d1…7e42"});setBusy(false);addEvent(file.name,suspicious);},1200);};return <><Heading eyebrow="PRE-EXECUTION SECURITY" title="Artifact scanner" desc="Inspect code, packages, and files before they enter an agent workflow." action={<Badge tone="info" dot>Local demo scanner</Badge>}/><div className="two-col"><Panel title="Submit an artifact" sub="Choose a file to run the simulated inspection pipeline"><div className="dropzone" onClick={()=>ref.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();setFile(e.dataTransfer.files?.[0]||null);setReport(null);}}><input ref={ref} type="file" hidden onChange={e=>{setFile(e.target.files?.[0]||null);setReport(null)}}/><UploadCloud size={30}/><b>{file?file.name:"Drop an artifact here or browse files"}</b><p>{file?(file.size/1024).toFixed(1)+" KB · Ready to scan":"ZIP, TAR, WHL, JS, PY, JSON and source files"}</p><small>Files are inspected locally in this demo. No upload occurs.</small></div><div className="button-row"><Button kind="outline" onClick={()=>{setFile(null);setReport(null)}}>Clear</Button><Button onClick={scan} disabled={!file||busy} icon={ScanLine}>{busy?"Scanning…":"Run security scan"}</Button></div>{report&&<div className="scan-report"><div><span><small>SCAN VERDICT</small><h2>{report.verdict}</h2></span><Badge tone={report.verdict==="BLOCKED"?"danger":"success"}>{report.verdict}</Badge></div><code>SHA-256 · {report.hash}</code>{report.checks.map(([n,s])=><div className="check-row" key={n}><span>{n}</span><Badge tone={s==="PASSED"?"success":s==="BLOCKED"?"danger":"warning"}>{s}</Badge></div>)}<small className="demo-caption">Illustrative result from local demo rules, not a malware verdict.</small></div>}</Panel><Panel title="Scan pipeline" sub="Five stages in pre-execution analysis"><div className="pipeline">{["Download & hash","Static analysis","Dependency & provenance","Policy risk assessment","Generate report"].map((x,i)=><div key={x}><b>0{i+1}</b><span><strong>{x}</strong><small>{["Fingerprint artifact and extract metadata","Inspect source and package patterns","Review dependencies and origin signals","Apply demo risk policy","Create operator-facing result"][i]}</small></span><CheckCircle2 size={16}/></div>)}</div></Panel></div></>}
+function ScenarioModal({scenario,close,confirm}){if(!scenario)return null;return <div className="modal-shade" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="modal"><header><div><h2>Configure · {scenario.name}</h2><p>SIMULATOR ENVIRONMENT · DEMO DATA</p></div><button className="icon-btn" onClick={close}><X size={18}/></button></header><p className="modal-copy">{scenario.desc}</p><div className="notice"><ShieldCheck size={17}/><span><b>Isolated simulator session</b><small>This scenario creates local demo events only. No external agent or system will be called.</small></span></div><div className="modal-actions"><Button kind="outline" onClick={close}>Cancel</Button><Button onClick={()=>confirm(scenario)} icon={Play}>Run scenario</Button></div></div></div>}
+
+export default function App(){
+ const [page,setPage]=useState("home"),[theme,setTheme]=useState("dark"),[expanded,setExpanded]=useState(true);
+ const [agents,setAgents]=useState(START_AGENTS),[events,setEvents]=useState(START_EVENTS),[runs,setRuns]=useState(START_RUNS);
+ const [selected,setSelected]=useState(null),[scenario,setScenario]=useState(null),[toast,setToast]=useState(""),[notice,setNotice]=useState(false);
+ useEffect(()=>{document.documentElement.dataset.kavachTheme=theme},[theme]);
+ useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(""),3000);return()=>clearTimeout(t)},[toast]);
+ const addEvent=(agent,decision,resource,reason,gate="Cedar policy")=>{const e={id:"req-"+Math.random().toString(16).slice(2,6),time:new Date().toLocaleTimeString(),agent,action:"read",resource,decision,reason,policy:"demo-simulator-policy",risk:decision==="DENY"?"HIGH":"LOW",gate};setEvents(v=>[e,...v]);return e};
+ const runScenario=s=>{const denied=s.id==="data"||s.id==="code";addEvent("researcher-01",denied?"DENY":"ALLOW",s.id==="data"?"data/finance.csv":s.id==="code"?"scripts/unknown.sh":"agent/delegation-chain",denied?"Requested action exceeds demo policy":"Scenario completed against local demo policies",s.id==="code"?"Artifact integrity":"Capability enforcement");setRuns(v=>[{id:"run-"+Date.now().toString().slice(-5),name:s.name,result:denied?"BLOCKED":"CONTAINED",time:"Just now",steps:5},...v]);setScenario(null);setPage("simulator");setToast(s.name+" simulation completed")};
+ const toggleAgent=id=>{const a=agents.find(x=>x.id===id);setAgents(v=>v.map(x=>x.id===id?{...x,state:x.state==="ACTIVE"?"QUARANTINED":"ACTIVE",trust:x.state==="ACTIVE"?"RESTRICTED":"VERIFIED"}:x));addEvent(a.name,"DENY","identity/"+id,a.state==="ACTIVE"?"Operator quarantined demo identity":"Operator restored demo identity","Identity & provenance");setToast(a.state==="ACTIVE"?"Agent quarantined in simulator":"Agent restored in simulator")};
+ const current= NAV.find(n=>n[0]===page)?.[1]||"Home";
+ let content;
+ switch(page){
+ case "simulator":content=<SimulatorPage runs={runs} run={(s,d)=>{addEvent("researcher-01",d,d==="DENY"?"data/finance.csv":"reports/summary.pdf",d==="DENY"?"Resource outside granted capability scope":"Demo policy checks passed");setRuns(v=>[{id:"run-"+Date.now(),name:s.name,result:d==="DENY"?"BLOCKED":"CONTAINED",time:"Just now",steps:5},...v])}}/>;break;
+ case "scenarios":content=<ScenariosPage choose={setScenario}/>;break;
+ case "shield":content=<ShieldPage agents={agents} events={events} inspect={setSelected}/>;break;
+ case "scanner":content=<ScannerPage addEvent={(f,b)=>{addEvent("artifact-scanner",b?"DENY":"ALLOW","artifact/"+f,b?"Local demo heuristic flagged file name":"No demo risk pattern matched","Artifact integrity");setToast("Demo scan completed")}}/>;break;
+ case "agents":content=<AgentsPage agents={agents} toggle={toggleAgent}/>;break;
+ case "policies":content=<PoliciesPage/>;break;
+ case "audit":content=<AuditPage events={events} runs={runs} inspect={setSelected}/>;break;
+ default:content=<HomePage runs={runs} navigate={setPage} choose={setScenario}/>;
+ }
+ return <div className={"app-shell "+(theme==="light"?"theme-light":"")}><aside className={"sidebar "+(!expanded?"collapsed":"")}><div className="brand"><span className="brand-mark"><Shield size={24}/></span>{expanded&&<span><b>KAVACH</b><small>Runtime Security</small></span>}<button className="sidebar-toggle" onClick={()=>setExpanded(v=>!v)}><Menu size={18}/></button></div><nav>{["WORKSPACE","SECURITY","MANAGEMENT"].map(group=><div className="nav-group" key={group}>{expanded&&<small>{group}</small>}{NAV.filter(n=>n[3]===group).map(([id,label,Icon])=><button key={id} onClick={()=>setPage(id)} className={"nav-item "+(page===id?"active":"")} title={!expanded?label:undefined}><Icon size={18}/>{expanded&&<span>{label}</span>}</button>)}</div>)}</nav>{expanded&&<div className="sidebar-bottom"><div className="sidebar-status"><b><i/>Local simulator</b><small>Demo environment · Offline</small></div></div>}</aside><div className="main-shell"><header className="topbar"><div className="crumbs"><b>KAVACH</b><ChevronRight size={14}/><span>{current}</span><Badge tone="info" dot>SIMULATOR</Badge></div><div className="top-actions"><div className="env-switch"><b>Simulator</b><span title="Production backend connection will be added later">Production</span></div><button className="icon-btn" onClick={()=>setTheme(v=>v==="dark"?"light":"dark")} title="Toggle theme">{theme==="dark"?<Sun size={17}/>:<Moon size={17}/>}</button><div className="notice-wrap"><button className="icon-btn" onClick={()=>setNotice(v=>!v)}><Bell size={17}/><i/></button>{notice&&<div className="notice-pop"><b>Notifications</b><p>You're viewing the local simulator. Live backend alerts are not connected.</p><button onClick={()=>setNotice(false)}>Dismiss</button></div>}</div><div className="profile"><span><UserRound size={16}/></span><b>Security Lead<small>Demo operator</small></b><ChevronDown size={14}/></div></div></header><main className="content">{content}<footer className="footer"><b><Shield size={13}/> KAVACH</b><span>ZERO-TRUST RUNTIME SECURITY</span><span><i/> SIMULATOR MODE · DEMO DATA</span></footer></main></div>{selected&&<TraceModal event={selected} onClose={()=>setSelected(null)}/>}{scenario&&<ScenarioModal scenario={scenario} close={()=>setScenario(null)} confirm={runScenario}/>}{toast&&<div className="toast"><CheckCircle2 size={16}/>{toast}</div>}</div>;
 }

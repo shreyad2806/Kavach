@@ -27,12 +27,12 @@ export function Sidebar({ activePage, onNavigate, collapsed, onToggle }) {
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
               style={{
-                background: "linear-gradient(135deg, #00d4ff22, #0064c822)",
-                border: "1.5px solid #00d4ff40",
-                boxShadow: "0 0 10px rgba(0,212,255,.18)",
+                background: "rgb(var(--accent) / .12)",
+                border: "1.5px solid rgb(var(--accent) / .32)",
+                boxShadow: "0 0 12px rgb(var(--accent) / .18)",
               }}
             >
-              <Shield size={15} style={{ color: "#00d4ff" }} />
+              <Shield size={15} className="text-neon" />
             </div>
             <div className="leading-tight min-w-0">
               <div className="text-[13px] font-extrabold tracking-widest text-ink uppercase" style={{ letterSpacing: "0.12em" }}>
@@ -66,8 +66,8 @@ export function Sidebar({ activePage, onNavigate, collapsed, onToggle }) {
                   : "text-ink3 hover:text-ink2 hover:bg-line border border-transparent"
               } ${collapsed ? "justify-center" : ""}`}
               style={active ? {
-                background: "linear-gradient(90deg, rgba(0,212,255,.08), rgba(0,212,255,.03))",
-                boxShadow: "inset 2px 0 0 #00d4ff",
+                background: "linear-gradient(90deg, rgb(var(--accent) / .12), rgb(var(--accent) / .035))",
+                boxShadow: "inset 2px 0 0 rgb(var(--accent))",
               } : {}}
             >
               <Icon size={15} className="flex-shrink-0" />
