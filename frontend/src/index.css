@@ -552,3 +552,35 @@ button:disabled{opacity:.55;cursor:not-allowed}
  .home-scenario-grid{grid-template-columns:1fr 1fr}
 }
 @media(prefers-reduced-motion:reduce){.security-visual-svg{animation:none!important;transform:translate(-50%,-50%)}}
+
+/* PR #5 follow-up: enlarge the shield artwork without distorting it.
+   The fixed 300px SVG height was compressing the 620×440 illustration,
+   making the shield noticeably smaller than the intended hero composition. */
+.hero-visual-premium{
+  height:320px;
+  min-height:320px;
+  overflow:visible;
+}
+.security-visual-svg{
+  width:min(100%,620px);
+  max-width:620px;
+  height:auto;
+  max-height:none;
+  aspect-ratio:620 / 440;
+  object-fit:contain;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  animation:shield-float-centered 6s ease-in-out infinite;
+}
+@media(max-width:900px){
+  .hero-visual-premium{height:300px;min-height:300px}
+  .security-visual-svg{width:min(100%,540px);height:auto}
+}
+@media(max-width:700px){
+  .hero-visual-premium{height:300px;min-height:300px}
+  .security-visual-svg{width:min(100%,460px);height:auto}
+}
+@media(prefers-reduced-motion:reduce){
+  .security-visual-svg{animation:none!important;transform:translate(-50%,-50%)}
+}
